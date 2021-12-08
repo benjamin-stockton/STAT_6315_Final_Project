@@ -73,47 +73,32 @@ cdat.2017 %>% head(10)
 # Annual Data
 ## Taking the measurements from Jan 1 and Jul 1 each year at noon
 dat$co_lag1 <- dat$sample_measurement_42101 %>% lag()
-adat <- dat %>% filter(day(datetime_gmt) == 1 & month(datetime_gmt) %in% c(1,7) & hour(datetime_gmt) == 12)
+adat <- dat %>% filter(day(datetime_gmt) == 1 & month(datetime_gmt) %in% c(1,7) & hour(datetime_gmt) == 12, !is.na(sample_measurement_61104), !is.na(sample_measurement_42101)) %>% select(sample_measurement_61104, sample_measurement_42101)
+colnames(adat) <- c("theta", "x")
+adat$theta %<>% as.numeric()
 adat
 
-cdat.2017.2 <- cdat.2017 %>% select(sample_measurement_61104, sample_measurement_42101) %>% filter(!is.na(sample_measurement_61104), !is.na(sample_measurement_42101))
-colnames(cdat.2017.2) <- c("theta", "x")
+cdat.jul.2017 <- cdat.2017 %>% filter(!is.na(sample_measurement_61104), !is.na(sample_measurement_42101), month(datetime_gmt) == 7) %>% select(sample_measurement_61104, sample_measurement_42101) 
+colnames(cdat.jul.2017) <- c("theta", "x") 
+summary(cdat.jul.2017)
+cdat.jul.2017$theta %<>% as.numeric()
 
-cdat.2017.2$theta %<>% as.numeric()
-joint_dist_plot(cdat.2017.2, xlab = "$\\theta$", ylab = "X")
+par(mfrow = c(1,1))
+plot(cdat.jul.2017$theta, cdat.jul.2017$x, pch = 16, xlab = TeX("Wind Direction $\\theta$ (rad)"), ylab = "Carbon Monoxide")
+# plot(adat[,"theta"], adat[,"x"], pch = 16)
 
-ctrl <- list(Q = 2500, burnin = 1250, sd_init = 1)
-K <- 1
-fit <- MH_posterior_estimation(cdat.2017.2, K = K, control = ctrl)
+source("abe_ley_mixture_metropolis_hastings.R")
+ctrl <- list(Q = 2500, burnin = 1500, sd_init = .5)
+K <- 2
+fit <- MH_posterior_estimation(cdat.jul.2017, K = K, control = ctrl)
 
-m_props <- fit$mix_props
-mix_props <- apply(m_props, 2, mean)
-iter <- (ctrl$burnin+1):ctrl$Q
+apply(fit$mix_props, 2, mean)
+post_means <- matrix(apply(fit$dist_pars, 2, mean), ncol = 5, byrow = T)
+colnames(post_means) <- c("alpha", "beta", "kappa", "mu", "lambda")
+post_means
 
-par(mfrow = c(K, 1))
-for (k in 1:K) {
-    plot(iter, m_props[iter, k], type = "l",
-         main = paste0("Chain for Mixing Prop. ", k),
-         xlab = "t", ylab = paste0("Prop ", k))
-}
-mix_props
+plot_tracestack(fit, ctrl)
 
-param_post <- fit$dist_pars
-param <- c("alpha", "beta", "kappa", "mu", "lambda")
-post_means <- matrix(apply(param_post, 2, mean), byrow = T, ncol = 5)
-colnames(post_means) <- param
-par(mfrow = c(K, 5))
-for (k in 1:K) {
-    for (j in 1:5) {
-        print(paste0("$\\", param[j], "_", k, "$"))
-        print(quantile(param_post[iter, (5*k-4):(5*k)][,j]), probs = c(.025, .05, .25, .5, .75, .95, .975))
-        plot(iter, param_post[iter, (5*k-4):(5*k)][,j], type = "l",
-             main = TeX(paste0("Chain for $\\", param[j], "_", k, "$")),
-             xlab = "t", ylab = TeX(paste0("$\\", param[j], "_", k, "$")))
-    }
-}
-dev.off()
+joint_dist_plot(cdat.2017.2, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density")
 
-
-pred_density_plot(adat, post_means = post_means, mix_props)
 

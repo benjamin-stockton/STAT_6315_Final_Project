@@ -20,9 +20,9 @@ rabeley <- function(n, mu, kappa, lambda, alpha, beta) {
     colnames(dat) <- c("theta", "x")
     for (i in 1:n) {
         t1 <- rwrappedcauchy(1, mu = circular(mu), tanh(kappa/2))
-        t <- ifelse(t1 < (1 + lambda * sin(t1 - mu))/2, t1, -t1) %% (2*pi)
+        t <- ifelse(t1 < (1 + lambda * sin(t1 - mu)) / 2, t1, -t1) %% (2*pi)
         shape_par <- beta * (1 - tanh(kappa) * cos(t - mu))^(-1/alpha)
-        x <- rweibull(1, alpha, shape = shape_par)
+        x <- rweibull(1, shape = alpha, scale = shape_par)
         dat[i,] <- c(t,x)
     }
     return(dat)
@@ -32,44 +32,97 @@ dbeta_rescale <- function(x, shape1 = 1, shape2 = 1) {
     return(dbeta((x/2 + 1/2), shape1 = shape1, shape2 = shape2)/2)
 }
 
-cyl_density_plot <- function(dat, main = "Joint Distibution on the Cylinder", xlab = "$\\theta$", ylab = "X") {
-    z <- kde2d(dat[,1], dat[,2], n = 50)
+dsswc <- function(theta, mu, kappa, lambda) {
+    const <- (1 - tanh(kappa/2)^2) / (2*pi)
+    num <- 1 + lambda * sin(theta - mu)
+    denom <- 1 + tanh(kappa/2)^2 - 2*tanh(kappa/2) * cos(theta - mu)
+    return(const * num / denom)
+}
+
+dmodweib <- function(x, alpha, beta, kappa) {
+    const <- alpha * beta^alpha * I.0(x^alpha * beta^alpha * tanh(kappa)) / cosh(kappa) 
+    kern <- x^(alpha-1) * exp(-(beta*x)^alpha)
+    return(const * kern)
+}
+
+
+# Mixture Abe-Ley Simulated Data
+dabeley_mixture <- function(x,theta, mix_prop, mu, kappa, lambda, alpha, beta) {
+    K <- length(mix_prop)
     
-    plot(dat[,1], dat[,2],
-         pch = 16, main = TeX(main), xlab = TeX(xlab), ylab = TeX(ylab))
-    contour(z, lwd = 2, add = TRUE, nlevels = 10,
+    d <- 0
+    
+    for (k in 1:K) {
+        d <- d + mix_prop[k] * dabeley(x = x, theta = theta, mu = mu[k], kappa = kappa[k],
+                                       lambda = lambda[k], alpha = alpha[k], beta = beta[k])
+    }
+    return(d)
+}
+
+rabeley_mixture <- function(N, mix_prop, mu, kappa, lambda, alpha, beta) {
+    K <- length(mix_prop)
+    dat <- matrix(numeric(2*N), ncol = 2)
+    colnames(dat) <- c("theta", "x")
+    for (i in 1:N) {
+        k <- sample(1:K, size = 1, prob = mix_prop, replace = T)
+        tmp <- rabeley(1, mu[k], kappa[k], lambda[k], alpha[k], beta[k])
+        dat[i,] <- tmp
+    }
+    return(dat)
+}
+
+dsswc_mixture <- function(theta, mu, kappa, lambda, tau) {
+    K <- length(tau)
+    d <- 0
+    
+    for (k in 1:K) {
+        d <- d + tau[k] * dsswc(theta, mu = mu[k], kappa = kappa[k], lambda[k])
+    }
+    return(d)
+}
+
+dmodweibull_mixture <- function(x, alpha, beta, kappa, tau) {
+    K <- length(tau)
+    d <- 0
+    
+    for (k in 1:K) {
+        d <- d + tau[k] * dmodweib(x, alpha = alpha[k], beta = beta[k], kappa = kappa[k])
+    }
+    return(d)
+}
+
+# Plotting Functions
+
+cyl_density_plot <- function(dat, mean_pars, mix_prop, main = "Joint Distibution on the Cylinder", xlab = "$\\theta$", ylab = "X") {
+    x_seq <- seq(from = min(dat[,2]), to = max(dat[,2]), length.out = 50)
+    t_seq <-  seq(from = min(dat[,1]), to = max(dat[,1]), length.out = 50)
+    
+    z <- t(outer(X = x_seq, Y = t_seq, FUN = dabeley_mixture,
+               mix_prop = mix_prop,
+               alpha = mean_pars[,1], beta = mean_pars[,2],
+               kappa = mean_pars[,3], mu = mean_pars[,4], lambda = mean_pars[,5]))
+    
+    plot(dat[,1], dat[,2], pch = 16, col = "black",
+         main = TeX(main), xlab = TeX(xlab), ylab = TeX(ylab))
+    contour(x = t_seq, y = x_seq, z = z, lwd = 2, add = TRUE, nlevels = 10,
             col = hcl.colors(10, "Spectral"))
 }
 
-pred_density_plot <- function(dat, post_means, mix_prop, main = "Fitted Distibution on the Cylinder", xlab = "$\\theta$", ylab = "X") {
-    fit_dat <- rabeley_mixture(1500, mix_prop = mix_prop, mu = post_means[,4], kappa = post_means[,3],
-                               alpha = post_means[,1], beta = post_means[,2], lambda = post_means[,5])
-    
-    z <- kde2d(fit_dat[,1], fit_dat[,2], n = 50)
-    
-    plot(dat[,1], dat[,2],
-         pch = 16, main = TeX(main), xlab = TeX(xlab), ylab = TeX(ylab),
-         xlim = c(min(z$x), max(z$x)), ylim = c(min(z$y), max(z$y)))
-    points(fit_dat[,1], fit_dat[,2], pch = 1, col = "lightgrey")
-    contour(z, lwd = 2, add = TRUE, nlevels = 10,
-            col = hcl.colors(10, "Spectral"))
-    
-}
-
-hist_density <- function(dat, main = "Distribution of X", xlab = "", ylab = "Density",...) {
+hist_density <- function(dat, main = "Distribution of X", xlab = "", ylab = "Density", lhist = 10,...) {
     dx <- density(dat)
-    hx <- hist(dat, plot = F)
+    hx <- hist(dat, plot = F, breaks = seq(from = min(dat), to = max(dat),
+                                           length.out = lhist))
     plot(hx, col="grey", main = TeX(main), xlab = TeX(xlab), ylab = TeX(ylab),...)
     lines(x = dx$x, y = dx$y * length(dat) * diff(hx$breaks)[1], lwd = 2)
 }
 
-joint_dist_plot <- function(dat, main = "", xlab = "$\\theta$", ylab = "X", lhist = 20) {
+joint_dist_plot <- function(dat, mean_pars, mix_prop, main = "", xlab = "$\\theta$", ylab = "X", lhist = 20) {
     layout(matrix(c(2,0,1,3), nrow = 2, byrow = T),
            widths = c(3,1), heights = c(1,3), respect = T)
     
     par. <- par(mar = c(4, 4, 1,1), oma = rep(.5, 4))
     
-    cyl_density_plot(dat = dat, main = main, xlab = xlab, ylab = ylab)
+    cyl_density_plot(dat = dat, mean_pars = mean_pars, mix_prop = mix_prop, main = main, xlab = xlab, ylab = ylab)
     
     t_hist <- hist(dat[,1], plot = F, breaks = seq(from = min(dat[,1]), to = max(dat[,1]),
                                                    length.out = lhist))
@@ -79,39 +132,68 @@ joint_dist_plot <- function(dat, main = "", xlab = "$\\theta$", ylab = "X", lhis
     td <- density(dat[,1])
     xd <- density(dat[,2])
     
+    fit_td <- dsswc_mixture(td$x, mu = mean_pars[,4], kappa = mean_pars[,3], lambda = mean_pars[,5], tau = mix_prop)
+    
+    fit_xd <- dmodweibull_mixture(xd$x, alpha = mean_pars[,1], beta = mean_pars[,2], kappa = mean_pars[,3], tau = mix_prop)
+    
     par(mar = c(0, 4, 0,0))
-    barplot(t_hist$density, axes = F,
-            ylim = c(0, max(t_hist$density)), space = 0)
-    lines(x = td$x, y = td$y, lwd = 2)
+    plot(t_hist, col="grey", main = "", xlab = "", ylab = "", axes = F, add = F)
+    lines(x = td$x, y = td$y * length(dat[,1]) * diff(t_hist$breaks)[1], lwd = 2)
+    lines(x = td$x, y = fit_td * length(dat[,1]) * diff(t_hist$breaks)[1], lwd = 1, col = "blue", lty = "dashed")
     # * length(dat[,1]) * diff(t_hist$breaks)[1]
     
     par(mar = c(4,0,0,0))
     barplot(x_hist$density, axes = F,
             xlim = c(0, max(x_hist$density)),
             space = 0, horiz = T)
-    lines(x = xd$x, y = xd$y, lwd = 2)
+    lines(x = xd$y * length(dat[,2]) * diff(x_hist$breaks)[1], y = xd$x, lwd = 2)
+    lines(x = fit_xd * length(dat[,2]) * diff(x_hist$breaks)[1], y = xd$x, lwd = 1, col = "blue", lty = "dashed")
     # * length(dat[,2]) * diff(x_hist$breaks)[1]
     
     par(par.)
+    
+    par(mfrow = c(1,1))
 }
 
-
-# Mixture Abe-Ley Simulated Data
-# dabeley_mixture <- function(x,theta, mix_prop, mu, kappa, lambda, alpha, beta) {
-#     
-# }
-rabeley_mixture <- function(N, mix_prop, mu, kappa, lambda, alpha, beta) {
-    dat <- matrix(numeric(2*N), ncol = 2)
-    colnames(dat) <- c("theta", "x")
-    for (i in 1:N) {
-        k <- which(rmultinom(1, 1, mix_prop) == 1)
-        tmp <- rabeley(1, mu[k], kappa[k], lambda[k], alpha[k], beta[k])
-        dat[i,] <- tmp
+plot_tracestack <- function(fit, ctrl) {
+    m_props <- fit$mix_props
+    mix_props <- apply(m_props, 2, mean)
+    iter <- (ctrl$burnin+1):ctrl$Q
+    
+    param_post <- fit$dist_pars
+    param <- c("tau", "alpha", "beta", "kappa", "mu", "lambda")
+    post_means <- matrix(apply(param_post, 2, mean), byrow = T, ncol = 5)
+    
+    par(mfrow = c(K, 6))
+    for (k in 1:K) {
+        for (j in 1:6) {
+            if (j == 1) {
+                print(paste0("$\\", param[j], "_", k, "$"))
+                print(quantile(m_props[iter,k]), probs = c(.025, .05, .25, .5, .75, .95, .975))
+                plot(iter, m_props[iter, k], type = "l",
+                     main = TeX(paste0("Chain for $\\", param[j], "_", k, "$")),
+                     xlab = "t", ylab = TeX(paste0("$\\", param[j], "_", k, "$")))
+                
+                abline(h = mix_props[k], col = "red", lty = "dashed")
+            } else {
+                print(paste0("$\\", param[j], "_", k, "$"))
+                print(quantile(param_post[iter, (5*k-4):(5*k)][,j-1]), probs = c(.025, .05, .25, .5, .75, .95, .975))
+                plot(iter, param_post[iter, (5*k-4):(5*k)][,j-1], type = "l",
+                     main = TeX(paste0("Chain for $\\", param[j], "_", k, "$")),
+                     xlab = "t", ylab = TeX(paste0("$\\", param[j], "_", k, "$")))
+                if (j == 5) {
+                    mu_hat <- as.numeric(mean.circular(circular(param_post[iter, (5*k-4):(5*k)][,j-1])))
+                    abline(h = mu_hat, col = "red", lty = "dashed")
+                } else {
+                    abline(h = post_means[k,j-1], col = "red", lty = "dashed")
+                }
+            }
+        }
     }
-    return(dat)
+    par(mfrow = c(1,1))
 }
 
-
+# Metropolis-Hastings Sampler for the Abe-Ley Mixture model
 # priors are as specified in the Sadeghianpourihamami paper
 build_colnames <- function(K) {
     pars <- c("alpha_", "beta_", "kappa_", "mu_", "lambda_")
@@ -123,12 +205,27 @@ build_colnames <- function(K) {
 }
 
 sample_proposal_dist <- function(mu_prev, sd_prev) {
+    
     alpha <- rtruncnorm(1, a = 0, mean = mu_prev[1], sd = sd_prev[1])
     beta <- rtruncnorm(1, a = 0, mean = mu_prev[2], sd = sd_prev[2])
     kappa <- rtruncnorm(1, a = 0, mean = mu_prev[3], sd = sd_prev[3])
     mu <- rwrappednormal(1, mu = circular(mu_prev[4]), sd = sd_prev[4])
     lambda <- rtruncnorm(1, a = -1, b = 1, mean = mu_prev[5], sd = sd_prev[5])
     return(c(alpha, beta, kappa, mu, lambda))
+}
+
+calc_prop_dist_means <- function(y, sd) {
+    mu_star <- numeric(5)
+    for (i in 1:5) {
+        if (i <= 3) {
+            mu_star[i] <- y[i] + sd[i]*(1 - pnorm(-y[i]/sd[i])^(-1) * dnorm(-y[i]/sd[i]))
+        } else if (i == 4) {
+            mu_star[i] <- y[i]
+        } else {
+            mu_star[i] <- y[i] - sd[i]*(dnorm((1 - y[i])/sd[i]) - dnorm((-1 - y[i])/sd[i])) / (pnorm((1 - y[i])/sd[i]) - pnorm((-1 - y[i])/sd[i]))
+        }
+    }
+    return(mu_star)
 }
 
 accept_ratio <- function(dat, y_star, y_prev, sd_prev) {
@@ -160,14 +257,7 @@ accept_ratio <- function(dat, y_star, y_prev, sd_prev) {
             J_star <- dtruncnorm(y_star[i], a = -1, b = 1, mean = y_prev[i], sd = sd_prev[i])
             J_prev <- dtruncnorm(y_prev[i], a = -1, b = 1, mean = y_star[i], sd = sd_prev[i])
         }
-        # print(paste0("px_prev: ", round(px_prev, 4), ", px_prop: ", round(px_prop, 4), ", p_prev: ", round(p_prev, 4), ", p_ystar: ", round(p_ystar, 4), ", J_prev: ", round(J_prev, 4), ", J_star: ", round(J_star, 4)))
         r <- exp(px_prop + log(p_ystar) + log(J_prev) - px_prev - log(p_prev) - log(J_star))
-        # print(paste0("r = ", round(r, 4)))
-        # if (!is.nan(r)) {
-        #     A[i] <- min(c(1, r))
-        # } else {
-        #     A[i] <- -999
-        # }
         A[i] <- min(c(1,r))
     }
     
@@ -180,16 +270,19 @@ sample_class_labels <- function(dat, nu_t, K) {
     l_sample <- numeric(n)
     for (i in 1:n) {
         for (k in 1:K) {
-            probs[k] <- dabeley(dat[,1], dat[,2], alpha = nu_t[1], beta = nu_t[2], 
-                                 kappa = nu_t[3], mu = nu_t[4], lambda = nu_t[5])
+            tmp <- nu_t[(5*k-4):(5*k)]
+            # print(tmp)
+            # print(dat[i,])
+            probs[k] <- dabeley(theta = dat[i,1], x = dat[i,2], alpha = tmp[1], beta = tmp[2], 
+                                 kappa = tmp[3], mu = tmp[4], lambda = tmp[5])
         }
-        l_sample[i] <- sample(1:K, size = n, prob = probs, replace = T)
+        # print(probs)
+        l_sample[i] <- sample(1:K, size = 1, prob = probs, replace = T)
     }
     return(l_sample)
 }
 
 sample_tau <- function(l_t, K, alpha0 = 1) {
-
     alpha <- rep(alpha0, K)
     for (k in 1:K) {
         alpha[k] <- alpha[k] + sum(l_t == k)
@@ -225,11 +318,14 @@ MH_posterior_estimation <- function(dat, K, control = list(Q = 2000, burnin = 10
     tau_chains <- matrix(numeric(Q * K), nrow = Q)
     colnames(tau_chains) <- paste0("tau_", 1:K)
     l_chains <- matrix(numeric(Q*N), ncol = Q)
+    
     # Initialization
     sd_prev <- rep(sd_init, 5*K)
     nu_0 <- numeric(5*K)
     for (k in 1:K) {
-        nu_0[(5*k-4):(5*k)] <- sample_proposal_dist(mu_prev = c(1,1,1, 0, .5), sd_prev = sd_prev[(5*k-4):(5*k)])
+        # mu_prev <- calc_prop_dist_means(c(1,1,1, 0, .5), sd_prev[(5*k-4):(5*k)])
+        # nu_0[(5*k-4):(5*k)] <- sample_proposal_dist(mu_prev = mu_prev, sd_prev = sd_prev[(5*k-4):(5*k)])
+        nu_0[(5*k-4):(5*k)] <- sample_proposal_dist(mu_prev = c(1,1,1,0,0), sd_prev = sd_prev[(5*k-4):(5*k)])
     }
     
     tau_0 <- rep(1/K, K)
@@ -249,21 +345,17 @@ MH_posterior_estimation <- function(dat, K, control = list(Q = 2000, burnin = 10
             # comp_k_obs <- which(l_t == k)
             # dat_k <- dat[comp_k_obs,]
             dat_k <- dat
-            # print(paste0("Mixture Component: ", k))
             y_prev <- nu_prev[(5*k-4):(5*k)]
-            # print("y_prev: ")
-            # print(y_prev, digits = 4)
             sd_prev[(5*k-4):(5*k)] <- adjust_sd(iter = i, R = 50,
                                                 sd_prev = sd_prev[(5*k-4):(5*k)],
                                                 accept_probs = a_probs[(5*k-4):(5*k)]/50)
-            # print("sd_prev: ")
-            # print(sd_prev, digits = 4)
-            y_star <- sample_proposal_dist(y_prev, sd_prev)
-            # print("y_star: ")
-            # print(y_star, digits = 4)
-            A <- accept_ratio(dat_k, y_star, y_prev, sd_prev)
-            # print("Acceptance Ratios: ")
-            # print(A, digits = 4)
+            
+            # mu_prev <- calc_prop_dist_means(y_prev, sd_prev[(5*k-4):(5*k)])
+            mu_prev <- y_prev
+            y_star <- sample_proposal_dist(mu_prev, sd_prev[(5*k-4):(5*k)])
+            mu_star <- y_star
+            # mu_star <- calc_prop_dist_means(y_star, sd_prev[(5*k-4):(5*k)])
+            A <- accept_ratio(dat_k, mu_star, mu_prev, sd_prev[(5*k-4):(5*k)])
             U <- runif(5)
             for (j in 1:5) {
                 if (U[j] >= A[j]) {
@@ -277,23 +369,18 @@ MH_posterior_estimation <- function(dat, K, control = list(Q = 2000, burnin = 10
             if ((i %% 50) == 0) {
                 a_probs <- rep(0, 5*K)
             }
-            # print("y_star: ")
-            # print(y_star, digits = 4)
             nu_t[(5*k-4):(5*k)] <- y_star
         }
-        # print(i)
-        # print(paste0("nu_", i, ": "))
-        # print(nu_t, digits = 4)
         nu_chains[i+1,] <- nu_t
         l_t <- sample_class_labels(dat, nu_t, K)
         l_chains[,i+1] <- l_t
         tau_chains[i+1,] <- sample_tau(l_t, K, alpha0 = 1)
         iter_end <- Sys.time()
         if (i %% 100 == 0)
-            print(paste0("Iteration: ", i, "; Iteration time: ", iter_end - iter_start, "; Total time: ", iter_end - start))
+            print(paste0("Iteration: ", i, "; Iteration time: ", round(iter_end - iter_start, 3), "; Total time: ", round(iter_end - start, 3)))
     }
     end <- Sys.time()
-    print(paste0("Total time elapsed: ", end - start))
+    print(paste0("Total time elapsed: ", round(end - start, 3)))
     return(list(dist_pars = nu_chains, mix_props = tau_chains, class_labels = l_chains))
 }
 
