@@ -7,6 +7,7 @@ library(dplyr)
 library(lubridate)
 library(astsa)
 library(ggplot2)
+library(xtable)
 source("~/Documents/Research/RCode/Schafer_Graham_Example/weighted_circular_regression_cl.R")
 source("~/Documents/Research/RCode/Schafer_Graham_Example/imputation_funcs.R")
 source("abe_ley_mixture_metropolis_hastings.R")
@@ -89,16 +90,28 @@ plot(cdat.jul.2017$theta, cdat.jul.2017$x, pch = 16, xlab = TeX("Wind Direction 
 
 source("abe_ley_mixture_metropolis_hastings.R")
 ctrl <- list(Q = 2500, burnin = 1500, sd_init = .5)
-K <- 2
+K <- 1
 fit <- MH_posterior_estimation(cdat.jul.2017, K = K, control = ctrl)
 
-apply(fit$mix_props, 2, mean)
+mix_props <- apply(fit$mix_props, 2, mean)
+mix_props
 post_means <- matrix(apply(fit$dist_pars, 2, mean), ncol = 5, byrow = T)
-colnames(post_means) <- c("alpha", "beta", "kappa", "mu", "lambda")
+colnames(post_means) <- c("$\\alpha$", "$\\beta$", "$\\kappa$", "$\\mu$", "$\\lambda$")
 post_means
 
 plot_tracestack(fit, ctrl)
 
 joint_dist_plot(cdat.2017.2, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density")
 
+fit$dist_pars[,4] <- circular(fit$dist_pars[,4])
+out_tab <- round(t(apply(fit$dist_pars, 2, quantile, probs = c(0.025, 0.05, .25,.5,.75,.95,.975))), 4)
+rownames(out_tab) <- c("$\\alpha$", "$\\beta$", "$\\kappa$", "$\\mu$", "$\\lambda$")
+xtable(out_tab, caption = "Posterior Quantiles of the Abe-Ley distribution from MCMC samples")
 
+alpha <- 2.3
+beta <- 4.94
+kappa <- post_means[1,3]
+mu <- post_means[1,4]
+lambda <- post_means[1,5]
+scale_par <- 1/(beta * (1 - tanh(kappa) * cos(0))^(1/alpha))
+scale_par * log(2)^(1/alpha)

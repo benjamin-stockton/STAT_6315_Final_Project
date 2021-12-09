@@ -1,0 +1,51 @@
+\section{Example Analysis}\label{ex_sec}
+
+In this section, I will discuss an example application of the Abe-Ley mixture model to estimating the distribution of wind direction and carbon monoxide levels from Milwaukee, WI from July 2017 \cite{abe_tractable_2017}\cite{sadeghianpourhamami_bayesian_2019}\cite{noauthor_airdata_nodate}. This data set comes from the EPA's Air Quality System database which is publicly available online. The time frame was chosen to encompass a moderately large number of data points while keeping roughly equivalent climatic conditions otherwise. The data are measured hourly, so some autocorrelation between observations can be expected to be present, but won't be accommodated in this model. I also have used list-wise deletion to remove any hourly observations with missing data, again for simplicity. A true analysis of the data set would require a more appropriate handling of the missing data such as multiple imputation. 
+
+To analyze this data set, I have used the Metroplis-Hastings algorithm described by Sadeghianpourhamami for approximating the posterior of a mixture of Abe-Ley densities \cite{sadeghianpourhamami_bayesian_2019}. While this allows for the fitting and inference of mixture models, I am only going to fit a single component mixture, ie a single Abe-Ley distribution, to the Milwaukee wind and pollution data due to time constraints (namely remedying the label switching and model selection). 
+
+From the marginal plots of the fitted Abe-Ley distribution in Figure \ref{fig:fitted}, there appears to be three prevailing wind directions while the carbon monoxide levels appear to most often between 0 and 0.2 parts per million (ppm). The wind directions are measured in radians with 0 corresponding to directly North in a counter-clockwise direction. The prevailing wind directions then appear to be north-northwest, south-southeast, and east-northeast. Based on the scatter in Figure \ref{fig:scatter}, the carbon monoxide is at higher levels when the winds generally come from the east (the interval $(\pi, 2\pi)$). 
+
+The 90\% and 95\% credible intervals along with other quantiles from the posterior are displayed in Table \ref{tab:quantiles}. The posterior means of the fitted distribution are $\hat{\mu} = 4.56$, $\hat{\kappa} = 0.2665$, $\hat{\lambda} = -0.0038$, $\hat{\alpha} = 2.432$, and $\hat{\beta} = 4.757$. The 95\% CIs indicate that the mean direction of the wind is between 241.79 and 280.749 degrees from due north (east-southeast), with a moderately low concentration parameter $\kappa$ between 0.17 and 0.35. The skewness parameter $\lambda$ is close to 0, but has a fairly wide credible interval (-0.12, 0.11) meaning the skewness is relatively unclear. The parameter $\alpha$ is the shape parameter for the marginal Weibull distribution of the carbon monoxide levels while $\beta$ is part of the scale. Their 95\% CIs (2.30, 2.57) and (4.60, 4.94) respectively indicate that the median carbon monoxide level is between 0.1968 and 0.2120 ppm for winds from the mean direction. 
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=.75\textwidth]{Figs/scatter_co_dir.png}
+    \caption{A scatterplot of the hourly wind direction and carbon monoxide levels from July 2017 in Milwaukee, WI.}
+    \label{fig:scatter}
+\end{figure}
+
+% latex table generated in R 4.0.4 by xtable 1.8-4 package
+% Wed Dec  8 17:56:25 2021
+\begin{table}[ht]
+\centering
+\begin{tabular}{rrrrrrrr}
+  \hline
+Posterior \\
+Quantiles & 2.5\% & 5\% & 25\% & 50\% & 75\% & 95\% & 97.5\% \\ 
+  \hline
+  $\alpha$ & 2.30 & 2.32 & 2.39 & 2.44 & 2.49 & 2.56 & 2.57 \\ 
+  $\beta$ & 4.60 & 4.64 & 4.72 & 4.77 & 4.84 & 4.92 & 4.94 \\ 
+  $\kappa$ & 0.17 & 0.20 & 0.24 & 0.27 & 0.29 & 0.33 & 0.35 \\ 
+  $\mu$ & 4.22 & 4.30 & 4.48 & 4.57 & 4.68 & 4.83 & 4.90 \\ 
+  $\lambda$ & -0.12 & -0.10 & -0.05 & -0.00 & 0.04 & 0.09 & 0.11 \\ 
+   \hline
+\end{tabular}
+\caption{Posterior Quantiles of the Abe-Ley distribution from MCMC samples from the Milwaukee wind and pollution data set.} 
+\label{tab:quantiles}
+\end{table}
+
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=.75\textwidth]{Figs/fitted_AL_mix_density_K_1_wind_data.png}
+    \caption{The fitted Abe-Ley mixture density ($K=1$) to the Milwaukee wind and pollution data set.}
+    \label{fig:fitted}
+\end{figure}
+% \begin{figure}
+%     \centering
+%     \includegraphics{Figs/tracestacks_wind_data_K_1.png}
+%     \caption{Caption}
+%     \label{fig:tracestack}
+% \end{figure}
+

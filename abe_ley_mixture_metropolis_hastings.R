@@ -21,8 +21,8 @@ rabeley <- function(n, mu, kappa, lambda, alpha, beta) {
     for (i in 1:n) {
         t1 <- rwrappedcauchy(1, mu = circular(mu), tanh(kappa/2))
         t <- ifelse(t1 < (1 + lambda * sin(t1 - mu)) / 2, t1, -t1) %% (2*pi)
-        shape_par <- beta * (1 - tanh(kappa) * cos(t - mu))^(-1/alpha)
-        x <- rweibull(1, shape = alpha, scale = shape_par)
+        scale_par <- beta * (1 - tanh(kappa) * cos(t - mu))^(-1/alpha)
+        x <- rweibull(1, shape = alpha, scale = scale_par)
         dat[i,] <- c(t,x)
     }
     return(dat)
@@ -149,7 +149,7 @@ joint_dist_plot <- function(dat, mean_pars, mix_prop, main = "", xlab = "$\\thet
     lines(x = xd$y * length(dat[,2]) * diff(x_hist$breaks)[1], y = xd$x, lwd = 2)
     lines(x = fit_xd * length(dat[,2]) * diff(x_hist$breaks)[1], y = xd$x, lwd = 1, col = "blue", lty = "dashed")
     # * length(dat[,2]) * diff(x_hist$breaks)[1]
-    
+    # legend("topright", legend = c("Generic Density", "Fitted Abe-Ley Density"), col = c("black", "blue"), lty = c("solid", "dashed"), lwd = c(2,1))
     par(par.)
     
     par(mfrow = c(1,1))
@@ -164,9 +164,9 @@ plot_tracestack <- function(fit, ctrl) {
     param <- c("tau", "alpha", "beta", "kappa", "mu", "lambda")
     post_means <- matrix(apply(param_post, 2, mean), byrow = T, ncol = 5)
     
-    par(mfrow = c(K, 6))
-    for (k in 1:K) {
-        for (j in 1:6) {
+    par(mfrow = c(6,K))
+    for (j in 1:6) {
+        for (k in 1:K) {
             if (j == 1) {
                 print(paste0("$\\", param[j], "_", k, "$"))
                 print(quantile(m_props[iter,k]), probs = c(.025, .05, .25, .5, .75, .95, .975))

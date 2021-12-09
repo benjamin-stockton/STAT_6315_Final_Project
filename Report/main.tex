@@ -1,0 +1,75 @@
+\documentclass[12pt, letterpaper]{article}
+%% Welcome to Overleaf!
+%% If this is your first time using LaTeX, it might be worth going through this brief presentation:
+%% https://www.overleaf.com/latex/learn/free-online-introduction-to-latex-part-1
+
+%% Researchers have been using LaTeX for decades to typeset their papers, producing beautiful, crisp documents in the process. By learning LaTeX, you are effectively following in their footsteps, and learning a highly valuable skill!
+
+%% The \usepackage commands below can be thought of as analogous to importing libraries into Python, for instance. We've pre-formatted this for you, so you can skip right ahead to the title below.
+
+%% Language and font encodings
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage[T1]{fontenc}
+
+%% Sets page size and margins
+\usepackage[letterpaper,top=1in,bottom=1in,left=1in,right=1in, marginparwidth=2cm]{geometry}
+\setlength{\parindent}{4em}
+\setlength{\parskip}{1em}
+\renewcommand{\baselinestretch}{1}
+
+\usepackage{fancyhdr}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{STAT 6315 Final Project}
+\lhead{Section \thesection}
+\cfoot{\thepage}
+
+%% Useful packages
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage{natbib}
+\usepackage{bm}
+\usepackage{subfiles}
+
+
+\bibliographystyle{unsrt}
+%% Title
+\title{
+		\usefont{OT1}{bch}{b}{n}
+		\normalfont \normalsize \textsc{STAT 6315 Final Project} \\ [10pt]
+		\huge A Review of Inference on Cylindrical Models \\
+}
+\selectlanguage{english}
+\usepackage{authblk}
+\author[1]{Benjamin Stockton}
+\affil[1]{University of Connecticut}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+% The word limit for this is 250 words.
+Over the past 45 years, two lineages from Mardia and Sutton \cite{mardia_model_1978} and Johnson and Wehrly \cite{johnson_angular-linear_1978} have developed to model and analyse cylindrical data, or bivariate data composed of a linear random variable and circular random variable. Models within these lineages were originally developed in a frequentist framework and only recently have been extended with the Bayesian, non-parametric, and semi-parametric methods. Inference has therefore been mainly developed for frequentist hypothesis testing while recent Bayesian approaches have focused on computational methods and model development than on inference in its own right. For the future, research seems to be focused on developing Bayesian methods and inference along with beginning to answer missing data questions. \\ 
+\end{abstract} 
+{\textbf{Keywords} \\
+% pick, 3-5, good, keywords
+Cylindrical Data, Missing Data, Inference, Directional Data
+}
+\subfile{intro}
+\subfile{hist}
+\subfile{mod}
+\subfile{applications}
+\subfile{example}
+\subfile{conclusion}
+
+% \section*{Acknowledgements}
+
+
+\bibliography{bibliography}
+\end{document}

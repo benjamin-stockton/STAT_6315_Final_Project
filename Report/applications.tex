@@ -1,0 +1,53 @@
+\section{Applications}\label{app_sec}
+
+%% May get rid of this section in favor of an example analysis
+
+We will discuss four applications of cylindrical data analysis and inference in this section; psychology, wind direction and speed or pollution, wave currents, and animal tracking telemetry. 
+
+\subsection{Teacher Evaluations in Educational Psychology} 
+% \subsection*{Regression Models for Cylindrical Data in Psychology} – Cremers et al (2020 – Multivariate Behavorial Research) 
+
+% \textbf{APPLIED PAPER}
+
+Cremers et al discussed a variety of occasions for when cylindrical regression arises in psychology, four models, and how to interpret the results with an example analysis of interpersonal behavior of teachers \cite{cremers_regression_2020}. The models discussed in this paper are based on the PN \cite{mastrantonio_joint_2018}, Generalized PN (where the variance matix doesn't have to be the identity), and an extension of the Abe-Ley model \cite{abe_tractable_2017}. The Abe-Ley regression model has the circular location parameter and linear scale parameter vary by a set of covariates. Model evaluation is performed with Predictive Log-Scoring Loss since the likelihood is not available in closed form for one of the models under consideration so AIC/BIC do not apply and LRTs cannot be performed since the models are not nested. Other Bayesian inferences are performed as specified by the original papers. 
+
+The central application of this paper is to circumplex data from teacher evaluations by students \cite{cremers_regression_2020}. Circumplexes are very common tools used in psychology to measure traits of subjects as angles which can then be related to other linear or categorical measurements. Students respond to surveys, implicitly rating different attributes such as "communion" or "agency" describing how a teacher is perceived. The angle measurements lose the resultant length that indicates the perceived intensity of the teachers behaviors and attitudes. Tying the magnitude of the vector along with the covariate of each teacher's self-efficacy rating. The intensity and angles are then responses in the cylindrical regressions with self-efficacy being a covariate. As such this is an extension beyond the circular-linear models we have seen previously.
+
+To handle missing data, the authors use listwise deletion to remove 3 of the 151 observations \cite{cremers_regression_2020}. While this is not desirable in general, the effects of listwise deletion are likely limited in this case. The authors were aware of the issues with listwise deletion and chose to proceed with it for simplicity.
+
+\subsection{Wind Direction, Speed, and Power}
+% Wind Direction and Wind Power
+
+As we saw previously, a very common application of cylindrical models is to wind direction and another meteorological variable \cite{carnicero_non-parametric_2013}\cite{garcia-portugues_exploring_2013}. Carta et al analyzed the joint distribution of wind direction and speed to better understand wind power in the Canary Islands (Spain)\cite{carta_joint_2008}. They used a modification of the Johnson and Wehrly model via copulas in the vein of Fern\'{a}ndez-Dur\'{a}n \cite{fernandez-duran_models_2007}. They specify a mixture of a normal and Weibull for the linear marginal with a finite mixture of von Mises for the circular marginal. 
+
+Within the literature on wind energy, there are two main models in use: the isotropic Gaussian and the anisotropic Gaussian model \cite{carta_joint_2008}. These models assume either that the wind speeds are normal and independent in orthogonal directions with either the same variance for the speed in both directions (isotropic) or different variances for the speeds (anisotropic). These models also require the mean wind speed to be non-zero in the prevailing wind direction and the mean to be zero in the orthogonal direction. Carta et al proposed a new model based on the copula extension of the Johnson and Wehrly cylindrical model \cite{carta_joint_2008}\cite{johnson_angular-linear_1978}. This model proves to be flexible and be a much better fit to the wind and speed data from the Canary Islands. The fits are far better than those of the isotropic and anisotropic models indicating that wind energy research could be improved significantly by adopting the new cylindrical models \cite{carta_joint_2008}.
+
+
+\subsection{Sea Currents Direction and Intensity}
+% \subsection*{Segmentation of Sea Current Fields by Cylindrical Hidden Markov Models: A Composite Likelihood Approach} – Ranalli, Lagona (2018 – Journal of the Royal Statistical Society) 
+
+% \textbf{APPLIED PAPER }
+
+Ranalli et al developed a spatial application of the Abe-Ley cylindrical model to coastal sea currents \cite{ranalli_segmentation_2018}. Their data comes from High Frequency Radars (HFRs) in the form of a bivariate series of angles and intensities (direction and speed of the current). HFRs are arranged in a lattice that partitions the area of interest. Their data comes from two HFRs located in the Tyrrhenian Sea in the Gulf of Naples. Analysis of coastal and sea currents has been previously limited to Hierarchical Bayes and ad hoc MCMC methods. These methods cannot apply to coastal currents because of the dependence on highly irregular orography (contour of the seafloor) \cite{ranalli_segmentation_2018}. Previous approaches to modeling currents have been based on empirical orthogonal function analysis (PCA of the circulation data) which is linear in nature and so ignores the cylindrical topology of the data.
+
+To model the currents, the Ranalli et al used a few mixtures of Abe-Ley cylindrical densities with parameters varying across the space \cite{ranalli_segmentation_2018}. Abe-Ley densities were chosen for being flexible, parsimonious, interpretable, and for allowing for skewness and multimodality (when mixed) \cite{abe_tractable_2017}. The Hidden Markov Random Field (HMRF) is what allows for the connections/correlations between the mixtures (this makes them popular in spatial statistics). HMRF are also used in cylindrical TS analysis and in HFR data analysis from the Adriatic Sea. They are very cutting-edge, so they tend to be unstable and unusable. Inference and model fitting is performed with Composite Likelihood (CL) which allows for normal approximations of the parameter estimates.  
+
+The goal of the modeling is to create spatial segmentation methods that can detect spatial discontinuities via latent classes, conditionally on which the distribution of the data is easier to interpret \cite{ranalli_segmentation_2018}. This is accomplished by hierarchically combining a Potts Model (parametric MRF) and Abe-Ley distribution. The Potts model is latent. Composite Likelihood estimation is performed via EM algorithm. Bootstrap was used to describe the standard errors of the point estimates. BIC was used for model selection. The spatial model developed fits the data well for both time periods in question. 
+
+\subsection{Animal Tracking Telemetry}
+
+% \subsection*{State-Space Analysis of Wildlife Telemetry Data} - Anderson-Sprecher, Ledolter (1991 - Journal of the American Statistical Association) 
+
+% \textbf{APPLIED PAPER}	 
+
+Anderson-Sprecher and Ledolter analyzed at the positions of radio collars on animals relative to a receiving tower \cite{anderson-sprecher_state-space_2021}. The positions of the animals are recorded as state vectors $(x_{t1}, x_{t2})$ for $t = 1,…,N$ times with the vectors evolving as $x_t = x_{t-1} + v_t$ where $v_t$ is assumed to be bivariate normal. We also consider the observation vectors $y_t$ of m angles from known locations (the towers); $y_t = h(x_t) + e_t$. $v_t$ are independent with 0 mean and covariance matrix $V$ and $e_t$ are similarly independent with 0 mean and covariance matrix $R$ and independent of $v_t$. $h(.)=180/\pi  \tan^{-1}((x_{t1} - a_{i1})/(x_{t2} - a_{i2}))$ is a function transforming the position of an animal in $\mathbb{R}^2$ to $m$ angles (measured from north in the clockwise direction). The model can be extended to allow for any ARIMA process for the animal movement. Estimation is via iterated-extended Kalman Filter-Smoother.    
+
+Anderson-Sprecher and Ledolter make a brief discussion of sources of missing data \cite{anderson-sprecher_state-space_2021}. Filtering can smooth out the missing data with estimates. They also advocated using a lower dimension model when data is partially missing, which, as mentioned in the review of the Kato and Shimizu paper \cite{kato_dependent_2008}, is not desirable. If large chunks are missing, they suggest re-initializing the model after the gap rather than trying to smooth over it. 
+
+
+% \begin{figure}
+%   \centering
+%   \includegraphics[width=0.4\textwidth]{figures/test.png}
+%   \caption{Notice how \LaTeX\ automatically numbers this figure.}
+% \end{figure}
+
