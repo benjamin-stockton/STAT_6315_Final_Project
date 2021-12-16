@@ -4,6 +4,7 @@ library(MASS)
 library(latex2exp)
 library(truncnorm)
 library(MCMCpack)
+library(RColorBrewer)
 
 
 # Abe-Ley Distribution random variable draw
@@ -28,8 +29,22 @@ rabeley <- function(n, mu, kappa, lambda, alpha, beta) {
     return(dat)
 }
 
+rssvm <- function(n, mu, kappa, lambda) {
+    t1 <- rvonmises(n, circular(mu), kappa)
+    # u <- runif(n)
+    t <- sapply(t1, FUN = function(t) {return(ifelse(runif(1) < (1 + lambda * sin(t-mu))/2, t, -t))}) %% (2*pi)
+    return(t)
+}
+
 dbeta_rescale <- function(x, shape1 = 1, shape2 = 1) {
     return(dbeta((x/2 + 1/2), shape1 = shape1, shape2 = shape2)/2)
+}
+
+dssvm <- function(theta, mu, kappa, lambda) {
+    const <- (2*pi * I.0(kappa))^-1
+    skew <- (1 + lambda * sin(theta - mu))
+    kern <- exp(kappa*cos(theta - mu))
+    return(const * skew * kern)
 }
 
 dsswc <- function(theta, mu, kappa, lambda) {
@@ -69,6 +84,16 @@ rabeley_mixture <- function(N, mix_prop, mu, kappa, lambda, alpha, beta) {
         dat[i,] <- tmp
     }
     return(dat)
+}
+
+rssvm_mixture <- function(N, mix_prop, mu, kappa, lambda) {
+    K <- length(mix_prop)
+    t <- numeric(N)
+    for (i in 1:N) {
+        k <- sample(1:K, size = 1, prob = mix_prop, replace = T)
+        t[i] <- rssvm(1, mu[k], kappa[k], lambda[k])
+    }
+    return(t)
 }
 
 dsswc_mixture <- function(theta, mu, kappa, lambda, tau) {
@@ -155,38 +180,52 @@ joint_dist_plot <- function(dat, mean_pars, mix_prop, main = "", xlab = "$\\thet
     par(mfrow = c(1,1))
 }
 
-plot_tracestack <- function(fit, ctrl) {
-    m_props <- fit$mix_props
+plot_tracestack <- function(param_post, m_props, ctrl) {
     mix_props <- apply(m_props, 2, mean)
-    iter <- (ctrl$burnin+1):ctrl$Q
+    # print(mix_props)
+    iter <- 1:nrow(m_props)
     
-    param_post <- fit$dist_pars
     param <- c("tau", "alpha", "beta", "kappa", "mu", "lambda")
     post_means <- matrix(apply(param_post, 2, mean), byrow = T, ncol = 5)
+    # print(post_means)
     
-    par(mfrow = c(6,K))
+    par(mfrow = c(2,3))
+    cols <- brewer.pal(max(3,K), "Dark2")
     for (j in 1:6) {
-        for (k in 1:K) {
             if (j == 1) {
+                print(paste0("$\\", param[j], "_", 1, "$"))
+                print(quantile(m_props[,1]), probs = c(.025, .05, .25, .5, .75, .95, .975))
+                plot(iter, m_props[, 1], type = "l",
+                     main = TeX(paste0("Chain for $\\", param[j], "$")),
+                     xlab = "t", ylab = TeX(paste0("$\\", param[j], "$")))
+                for (k in 2:K) {
                 print(paste0("$\\", param[j], "_", k, "$"))
-                print(quantile(m_props[iter,k]), probs = c(.025, .05, .25, .5, .75, .95, .975))
-                plot(iter, m_props[iter, k], type = "l",
-                     main = TeX(paste0("Chain for $\\", param[j], "_", k, "$")),
-                     xlab = "t", ylab = TeX(paste0("$\\", param[j], "_", k, "$")))
-                
+                print(quantile(m_props[,k]), probs = c(.025, .05, .25, .5, .75, .95, .975))
+                lines(iter, m_props[, k], col = cols[k])
                 abline(h = mix_props[k], col = "red", lty = "dashed")
+                }
             } else {
-                print(paste0("$\\", param[j], "_", k, "$"))
-                print(quantile(param_post[iter, (5*k-4):(5*k)][,j-1]), probs = c(.025, .05, .25, .5, .75, .95, .975))
-                plot(iter, param_post[iter, (5*k-4):(5*k)][,j-1], type = "l",
-                     main = TeX(paste0("Chain for $\\", param[j], "_", k, "$")),
-                     xlab = "t", ylab = TeX(paste0("$\\", param[j], "_", k, "$")))
+                print(paste0("$\\", param[j], "$"))
+                print(quantile(param_post[, 1:5][,j-1]), probs = c(.025, .05, .25, .5, .75, .95, .975))
+                plot(iter, param_post[, 1:5][,j-1], type = "l",
+                     main = TeX(paste0("Chain for $\\", param[j], "$")),
+                     xlab = "t", ylab = TeX(paste0("$\\", param[j], "$")))
                 if (j == 5) {
-                    mu_hat <- as.numeric(mean.circular(circular(param_post[iter, (5*k-4):(5*k)][,j-1])))
+                    mu_hat <- as.numeric(mean.circular(circular(param_post[, 1:5][,j-1])))
                     abline(h = mu_hat, col = "red", lty = "dashed")
                 } else {
-                    abline(h = post_means[k,j-1], col = "red", lty = "dashed")
+                    abline(h = post_means[1,j-1], col = "red", lty = "dashed")
                 }
+                for (k in 2:K) {
+                    print(paste0("$\\", param[j], "_", k, "$"))
+                    print(quantile(param_post[, (5*k-4):(5*k)][,j-1]), probs = c(.025, .05, .25, .5, .75, .95, .975))
+                    lines(iter, param_post[, (5*k-4):(5*k)][,j-1], col = cols[k])
+                    if (j == 5) {
+                        mu_hat <- as.numeric(mean.circular(circular(param_post[, (5*k-4):(5*k)][,j-1])))
+                        abline(h = mu_hat, col = "red", lty = "dashed")
+                    } else {
+                        abline(h = post_means[k,j-1], col = "red", lty = "dashed")
+                    }
             }
         }
     }
@@ -308,7 +347,13 @@ adjust_sd <- function(iter, sd_prev, R, accept_probs) {
     return(sd_new)
 }
 
-MH_posterior_estimation <- function(dat, K, control = list(Q = 2000, burnin = 1000, sd_init = 1)) {
+MH_posterior_estimation <- function(dat, K, x.obs = NULL, control = list(Q = 2000, burnin = 1000, sd_init = 1)) {
+    # data should be:
+    # theta     x
+    # t1        x1
+    # t2        x2
+    # ...       ...
+    colnames(dat) <- c("theta", "x")
     start <- Sys.time()
     N <- nrow(dat); sd_init <- control$sd_init; Q <- control$Q; burnin <- control$burnin
     # Each row of the chains is of the form:
@@ -318,6 +363,13 @@ MH_posterior_estimation <- function(dat, K, control = list(Q = 2000, burnin = 10
     tau_chains <- matrix(numeric(Q * K), nrow = Q)
     colnames(tau_chains) <- paste0("tau_", 1:K)
     l_chains <- matrix(numeric(Q*N), ncol = Q)
+    if (!is.null(x.obs)) {
+        M <- length(x.obs) 
+        theta_pred <- matrix(numeric(Q * M), nrow = Q)
+        colnames(theta_pred) <- paste0("theta_pred_", 1:M)
+    } else {
+        theta_pred <- NULL
+    }
     
     # Initialization
     sd_prev <- rep(sd_init, 5*K)
@@ -331,6 +383,20 @@ MH_posterior_estimation <- function(dat, K, control = list(Q = 2000, burnin = 10
     tau_0 <- rep(1/K, K)
     l_t <- sample(1:K, size = N, prob = tau_0, replace = T)
     
+    if (!is.null(x.obs)) {
+        M <- length(x.obs)
+        theta_new <- numeric(M)
+        for (m in 1:M) {
+            nu_tmp <- matrix(nu_0, byrow = T, ncol = 5)
+            conc_pred <- (nu_tmp[,2] * x.obs[m])^nu_tmp[,1] * tanh(nu_tmp[,3])
+            theta_new[m] <- rssvm_mixture(1, mix_prop = tau_0,
+                                          mu = nu_tmp[,4], kappa = conc_pred, lambda = nu_tmp[,5])
+        }
+        theta_pred[1,] <- theta_new
+        pred_dat <- cbind(theta_new, x.obs)
+        colnames(pred_dat) <- c("theta", "x")
+    }
+    
     nu_chains[1,] <- nu_0
     tau_chains[1,] <- tau_0
     l_chains[,1] <- l_t
@@ -339,12 +405,18 @@ MH_posterior_estimation <- function(dat, K, control = list(Q = 2000, burnin = 10
     for (i in 1:(Q - 1)) {
         iter_start <- Sys.time()
         
+        # Sample parameters for each mixture
         nu_prev <- nu_chains[i,]
         nu_t <- numeric(5*K)
         for (k in 1:K) {
             # comp_k_obs <- which(l_t == k)
             # dat_k <- dat[comp_k_obs,]
-            dat_k <- dat
+            if (!is.null(x.obs)) {
+                dat_k <- rbind(dat, pred_dat)
+            } else {
+                dat_k <- dat
+            }
+            
             y_prev <- nu_prev[(5*k-4):(5*k)]
             sd_prev[(5*k-4):(5*k)] <- adjust_sd(iter = i, R = 50,
                                                 sd_prev = sd_prev[(5*k-4):(5*k)],
@@ -372,16 +444,35 @@ MH_posterior_estimation <- function(dat, K, control = list(Q = 2000, burnin = 10
             nu_t[(5*k-4):(5*k)] <- y_star
         }
         nu_chains[i+1,] <- nu_t
+        # Sample the class labels
         l_t <- sample_class_labels(dat, nu_t, K)
         l_chains[,i+1] <- l_t
+        # Sample the class probabilities
         tau_chains[i+1,] <- sample_tau(l_t, K, alpha0 = 1)
+        
+        # Sample the missing data 
+        # Theta first
+        if (!is.null(x.obs)) {
+            M <- length(x.obs)
+            theta_new <- numeric(M)
+            for (m in 1:M) {
+                nu_tmp <- matrix(nu_chains[i+1,], byrow = T, ncol = 5)
+                conc_pred <- (nu_tmp[,2] * x.obs[m])^nu_tmp[,1] * tanh(nu_tmp[,3])
+                theta_new[m] <- rssvm_mixture(1, mix_prop = tau_chains[i+1,],
+                                                    mu = nu_tmp[,4], kappa = conc_pred, lambda = nu_tmp[,5])
+            }
+            theta_pred[i+1,] <- theta_new
+            pred_dat <- cbind(theta_new, x.obs)
+            colnames(pred_dat) <- c("theta", "x")
+        }
+        
         iter_end <- Sys.time()
         if (i %% 100 == 0)
             print(paste0("Iteration: ", i, "; Iteration time: ", round(iter_end - iter_start, 3), "; Total time: ", round(iter_end - start, 3)))
     }
     end <- Sys.time()
     print(paste0("Total time elapsed: ", round(end - start, 3)))
-    return(list(dist_pars = nu_chains, mix_props = tau_chains, class_labels = l_chains))
+    return(list(dist_pars = nu_chains, mix_props = tau_chains, class_labels = l_chains, theta_pred = theta_pred))
 }
 
 
