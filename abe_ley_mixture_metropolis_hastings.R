@@ -180,68 +180,113 @@ joint_dist_plot <- function(dat, mean_pars, mix_prop, main = "", xlab = "$\\thet
     par(mfrow = c(1,1))
 }
 
-plot_tracestack <- function(param_post, m_props, ctrl) {
-    mix_props <- apply(m_props, 2, mean)
-    # print(mix_props)
-    iter <- 1:nrow(m_props)
-    
-    param <- c("tau", "alpha", "beta", "kappa", "mu", "lambda")
-    post_means <- matrix(apply(param_post, 2, mean), byrow = T, ncol = 5)
-    # print(post_means)
-    
-    par(mfrow = c(2,3))
-    cols <- brewer.pal(max(3,K), "Dark2")
-    for (j in 1:6) {
-            if (j == 1) {
+plot_tracestack <- function(mcmc_pars, K, ctrl) {
+    if (K == 1) {
+        m_props <- matrix(mcmc_pars[,6], ncol = K)
+        mix_props <- apply(m_props, 2, mean)
+        # print(mix_props)
+        iter <- 1:nrow(m_props)
+        
+        param <- c("alpha", "beta", "kappa", "mu", "lambda", "tau")
+        post_means <- matrix(numeric(5*K), ncol = 5)
+        for (i in 1:5) {
+            post_means[,i] <- apply(matrix(mcmc_pars[,i], ncol = K), 2, mean)
+        }
+        # print(post_means)
+        par(mfrow = c(2,3))
+        cols <- brewer.pal(max(3,K), "Dark2")
+        for (j in 1:6) {
+            if (j == 6) {
+                print(paste0("$\\", param[j], "_", 1, "$"))
+                print(quantile(m_props[,1]), probs = c(.025, .05, .25, .5, .75, .95, .975))
+                plot(iter, m_props[, 1], type = "l",
+                     main = TeX(paste0("Chain for $\\", param[j], "$")),
+                     xlab = "t", ylab = TeX(paste0("$\\", param[j], "$")))
+                abline(h = mix_props[1], col = "red", lty = "dashed")
+            } else {
+                print(paste0("$\\", param[j], "$"))
+                print(quantile(mcmc_pars[,j]), probs = c(.025, .05, .25, .5, .75, .95, .975))
+                plot(iter, mcmc_pars[,j], type = "l",
+                     main = TeX(paste0("Chain for $\\", param[j], "$")),
+                     xlab = "t", ylab = TeX(paste0("$\\", param[j], "$")))
+                if (j == 4) {
+                    mu_hat <- as.numeric(mean.circular(circular(mcmc_pars[,j])))
+                    abline(h = mu_hat, col = "red", lty = "dashed")
+                } else {
+                    abline(h = post_means[,j], col = "red", lty = "dashed")
+                }
+            }
+        }
+    } else {
+        m_props <- matrix(mcmc_pars[,,6], ncol = K)
+        mix_props <- apply(m_props, 2, mean)
+        # print(mix_props)
+        iter <- 1:nrow(m_props)
+        
+        param <- c("alpha", "beta", "kappa", "mu", "lambda", "tau")
+        post_means <- matrix(numeric(5*K), ncol = 5)
+        for (i in 1:5) {
+            post_means[,i] <- apply(matrix(mcmc_pars[,,i], ncol = K), 2, mean)
+        }
+        # print(post_means)
+        par(mfrow = c(2,3))
+        cols <- brewer.pal(max(3,K), "Dark2")
+        for (j in 1:6) {
+            if (j == 6) {
                 print(paste0("$\\", param[j], "_", 1, "$"))
                 print(quantile(m_props[,1]), probs = c(.025, .05, .25, .5, .75, .95, .975))
                 plot(iter, m_props[, 1], type = "l",
                      main = TeX(paste0("Chain for $\\", param[j], "$")),
                      xlab = "t", ylab = TeX(paste0("$\\", param[j], "$")))
                 for (k in 2:K) {
-                print(paste0("$\\", param[j], "_", k, "$"))
-                print(quantile(m_props[,k]), probs = c(.025, .05, .25, .5, .75, .95, .975))
-                lines(iter, m_props[, k], col = cols[k])
-                abline(h = mix_props[k], col = "red", lty = "dashed")
+                    print(paste0("$\\", param[j], "_", k, "$"))
+                    print(quantile(m_props[,k]), probs = c(.025, .05, .25, .5, .75, .95, .975))
+                    lines(iter, m_props[, k], col = cols[k])
+                    abline(h = mix_props[k], col = "red", lty = "dashed")
                 }
             } else {
                 print(paste0("$\\", param[j], "$"))
-                print(quantile(param_post[, 1:5][,j-1]), probs = c(.025, .05, .25, .5, .75, .95, .975))
-                plot(iter, param_post[, 1:5][,j-1], type = "l",
+                print(quantile(mcmc_pars[,1,j]), probs = c(.025, .05, .25, .5, .75, .95, .975))
+                plot(iter, mcmc_pars[,1,j], type = "l",
                      main = TeX(paste0("Chain for $\\", param[j], "$")),
                      xlab = "t", ylab = TeX(paste0("$\\", param[j], "$")))
-                if (j == 5) {
-                    mu_hat <- as.numeric(mean.circular(circular(param_post[, 1:5][,j-1])))
+                if (j == 4) {
+                    mu_hat <- as.numeric(mean.circular(circular(mcmc_pars[,1,j])))
                     abline(h = mu_hat, col = "red", lty = "dashed")
                 } else {
-                    abline(h = post_means[1,j-1], col = "red", lty = "dashed")
+                    abline(h = post_means[1,j], col = "red", lty = "dashed")
                 }
                 for (k in 2:K) {
                     print(paste0("$\\", param[j], "_", k, "$"))
-                    print(quantile(param_post[, (5*k-4):(5*k)][,j-1]), probs = c(.025, .05, .25, .5, .75, .95, .975))
-                    lines(iter, param_post[, (5*k-4):(5*k)][,j-1], col = cols[k])
-                    if (j == 5) {
-                        mu_hat <- as.numeric(mean.circular(circular(param_post[, (5*k-4):(5*k)][,j-1])))
+                    print(quantile(mcmc_pars[,k,j]), probs = c(.025, .05, .25, .5, .75, .95, .975))
+                    lines(iter, mcmc_pars[,k,j], col = cols[k])
+                    if (j == 4) {
+                        mu_hat <- as.numeric(mean.circular(circular(mcmc_pars[,k,j])))
                         abline(h = mu_hat, col = "red", lty = "dashed")
                     } else {
-                        abline(h = post_means[k,j-1], col = "red", lty = "dashed")
+                        abline(h = post_means[k,j], col = "red", lty = "dashed")
                     }
+                }
             }
         }
     }
+    
+    
+    
+    
     par(mfrow = c(1,1))
 }
 
 # Metropolis-Hastings Sampler for the Abe-Ley Mixture model
 # priors are as specified in the Sadeghianpourihamami paper
-build_colnames <- function(K) {
-    pars <- c("alpha_", "beta_", "kappa_", "mu_", "lambda_")
-    ind <- numeric(5*K)
-    for (k in 1:K) {
-        ind[(5*k - 4):(5*k)] <- rep(k, 5)
-    }
-    return(paste0(pars, ind))
-}
+# build_colnames <- function(K) {
+#     pars <- c("alpha_", "beta_", "kappa_", "mu_", "lambda_")
+#     ind <- numeric(5*K)
+#     for (k in 1:K) {
+#         ind[(5*k - 4):(5*k)] <- rep(k, 5)
+#     }
+#     return(paste0(pars, ind))
+# }
 
 sample_proposal_dist <- function(mu_prev, sd_prev) {
     
@@ -309,7 +354,7 @@ sample_class_labels <- function(dat, nu_t, K) {
     l_sample <- numeric(n)
     for (i in 1:n) {
         for (k in 1:K) {
-            tmp <- nu_t[(5*k-4):(5*k)]
+            tmp <- nu_t[k,]
             # print(tmp)
             # print(dat[i,])
             probs[k] <- dabeley(theta = dat[i,1], x = dat[i,2], alpha = tmp[1], beta = tmp[2], 
@@ -327,6 +372,7 @@ sample_tau <- function(l_t, K, alpha0 = 1) {
         alpha[k] <- alpha[k] + sum(l_t == k)
     }
     tau_star <- rdirichlet(1, alpha)
+    return(tau_star)
 }
 
 adjust_sd <- function(iter, sd_prev, R, accept_probs) {
@@ -356,28 +402,33 @@ MH_posterior_estimation <- function(dat, K, x.obs = NULL, control = list(Q = 200
     colnames(dat) <- c("theta", "x")
     start <- Sys.time()
     N <- nrow(dat); sd_init <- control$sd_init; Q <- control$Q; burnin <- control$burnin
-    # Each row of the chains is of the form:
-    # (rep(alpha_k, beta_k, kappa_k, mu_k, lambda_k, K), tau_1,..., tau_K)
-    nu_chains <- matrix(numeric(Q * K*5), nrow = Q)
-    colnames(nu_chains) <- build_colnames(K)
-    tau_chains <- matrix(numeric(Q * K), nrow = Q)
-    colnames(tau_chains) <- paste0("tau_", 1:K)
-    l_chains <- matrix(numeric(Q*N), ncol = Q)
+    # MCMC Draws will be stored in a QxKx6 array
+    # The Q dim is the rows for each iteration of MCMC
+    # The K dim is the columns for each mixture component
+    # The J dim = 6 is the depth for each parameter
+    # J = 1: alpha
+    # J = 2: beta
+    # J = 3: kappa
+    # J = 4: mu
+    # J = 5: lambda
+    # J = 6: tau (mixing props)
+    chains <- array(data = NA, dim = c(Q, K, 6))
+    l_chains <- matrix(numeric(Q*N), ncol = N)
     if (!is.null(x.obs)) {
         M <- length(x.obs) 
-        theta_pred <- matrix(numeric(Q * M), nrow = Q)
+        theta_pred <- matrix(numeric(Q * M), ncol = M)
         colnames(theta_pred) <- paste0("theta_pred_", 1:M)
     } else {
         theta_pred <- NULL
     }
     
     # Initialization
-    sd_prev <- rep(sd_init, 5*K)
-    nu_0 <- numeric(5*K)
+    sd_prev <- matrix(rep(sd_init, 5*K), ncol = 5)
+    nu_0 <- matrix(numeric(5*K), ncol = 5)
     for (k in 1:K) {
         # mu_prev <- calc_prop_dist_means(c(1,1,1, 0, .5), sd_prev[(5*k-4):(5*k)])
         # nu_0[(5*k-4):(5*k)] <- sample_proposal_dist(mu_prev = mu_prev, sd_prev = sd_prev[(5*k-4):(5*k)])
-        nu_0[(5*k-4):(5*k)] <- sample_proposal_dist(mu_prev = c(1,1,1,0,0), sd_prev = sd_prev[(5*k-4):(5*k)])
+        nu_0[k,] <- sample_proposal_dist(mu_prev = c(1,1,1,0,0), sd_prev = sd_prev[k,])
     }
     
     tau_0 <- rep(1/K, K)
@@ -387,7 +438,7 @@ MH_posterior_estimation <- function(dat, K, x.obs = NULL, control = list(Q = 200
         M <- length(x.obs)
         theta_new <- numeric(M)
         for (m in 1:M) {
-            nu_tmp <- matrix(nu_0, byrow = T, ncol = 5)
+            nu_tmp <- nu_0
             conc_pred <- (nu_tmp[,2] * x.obs[m])^nu_tmp[,1] * tanh(nu_tmp[,3])
             theta_new[m] <- rssvm_mixture(1, mix_prop = tau_0,
                                           mu = nu_tmp[,4], kappa = conc_pred, lambda = nu_tmp[,5])
@@ -397,17 +448,17 @@ MH_posterior_estimation <- function(dat, K, x.obs = NULL, control = list(Q = 200
         colnames(pred_dat) <- c("theta", "x")
     }
     
-    nu_chains[1,] <- nu_0
-    tau_chains[1,] <- tau_0
-    l_chains[,1] <- l_t
-    a_probs <- rep(1, 5*K)
+    chains[1,,1:5] <- nu_0
+    chains[1,,6] <- tau_0
+    l_chains[1,] <- l_t
+    a_probs <- matrix(rep(1, 5*K), nrow = K)
 
     for (i in 1:(Q - 1)) {
         iter_start <- Sys.time()
         
         # Sample parameters for each mixture
-        nu_prev <- nu_chains[i,]
-        nu_t <- numeric(5*K)
+        nu_prev <- matrix(chains[i,,1:5], nrow = K)
+        nu_t <- matrix(numeric(5*K), nrow = K)
         for (k in 1:K) {
             # comp_k_obs <- which(l_t == k)
             # dat_k <- dat[comp_k_obs,]
@@ -417,38 +468,38 @@ MH_posterior_estimation <- function(dat, K, x.obs = NULL, control = list(Q = 200
                 dat_k <- dat
             }
             
-            y_prev <- nu_prev[(5*k-4):(5*k)]
-            sd_prev[(5*k-4):(5*k)] <- adjust_sd(iter = i, R = 50,
-                                                sd_prev = sd_prev[(5*k-4):(5*k)],
-                                                accept_probs = a_probs[(5*k-4):(5*k)]/50)
+            nu_prev_k <- nu_prev[k,]
+            sd_prev[k,] <- adjust_sd(iter = i, R = 50,
+                                    sd_prev = sd_prev[k,],
+                                    accept_probs = a_probs[k,]/50)
             
             # mu_prev <- calc_prop_dist_means(y_prev, sd_prev[(5*k-4):(5*k)])
-            mu_prev <- y_prev
-            y_star <- sample_proposal_dist(mu_prev, sd_prev[(5*k-4):(5*k)])
-            mu_star <- y_star
+            mu_prev <- nu_prev_k
+            nu_star_k <- sample_proposal_dist(mu_prev, sd_prev[k,])
+            mu_star <- nu_star_k
             # mu_star <- calc_prop_dist_means(y_star, sd_prev[(5*k-4):(5*k)])
-            A <- accept_ratio(dat_k, mu_star, mu_prev, sd_prev[(5*k-4):(5*k)])
+            A <- accept_ratio(dat_k, mu_star, mu_prev, sd_prev[k,])
             U <- runif(5)
             for (j in 1:5) {
                 if (U[j] >= A[j]) {
-                    y_star[j] <- y_prev[j]
+                    nu_star_k[j] <- nu_prev_k[j]
                 } else {
-                    a_probs[(5*k-4):(5*k)][j] <- a_probs[(5*k-4):(5*k)][j] + 1
-                    y_star[j] <- y_star[j]
+                    a_probs[k,j] <- a_probs[k,j] + 1
+                    nu_star_k[j] <- nu_star_k[j]
                 }
                 
             }
             if ((i %% 50) == 0) {
-                a_probs <- rep(0, 5*K)
+                a_probs <- matrix(rep(0, 5*K), nrow = K)
             }
-            nu_t[(5*k-4):(5*k)] <- y_star
+            nu_t[k,] <- nu_star_k
         }
-        nu_chains[i+1,] <- nu_t
+        chains[i+1,,1:5] <- nu_t
         # Sample the class labels
         l_t <- sample_class_labels(dat, nu_t, K)
-        l_chains[,i+1] <- l_t
+        l_chains[i+1,] <- l_t
         # Sample the class probabilities
-        tau_chains[i+1,] <- sample_tau(l_t, K, alpha0 = 1)
+        chains[i+1,,6] <- sample_tau(l_t, K, alpha0 = 1)
         
         # Sample the missing data 
         # Theta first
@@ -472,7 +523,7 @@ MH_posterior_estimation <- function(dat, K, x.obs = NULL, control = list(Q = 200
     }
     end <- Sys.time()
     print(paste0("Total time elapsed: ", round(end - start, 3)))
-    return(list(dist_pars = nu_chains, mix_props = tau_chains, class_labels = l_chains, theta_pred = theta_pred))
+    return(list(mcmc_pars = chains, class_labels = l_chains, theta_pred = theta_pred))
 }
 
 
