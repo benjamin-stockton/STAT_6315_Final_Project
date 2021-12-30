@@ -20,7 +20,7 @@ cyl_density_plot <- function(dat, mean_pars, mix_prop, main = "Joint Distibution
                  kappa = mean_pars[,3], mu = mean_pars[,4], lambda = mean_pars[,5]))
     
     plot(dat[,1], dat[,2], pch = 16, col = "black",
-         main = TeX(main), xlab = TeX(xlab), ylab = TeX(ylab))
+         main = TeX(main), xlab = TeX(xlab), ylab = TeX(ylab), xlim = c(0, 2*pi))
     contour(x = t_seq, y = x_seq, z = z, lwd = 2, add = TRUE, nlevels = 10,
             col = hcl.colors(10, "Spectral"))
 }

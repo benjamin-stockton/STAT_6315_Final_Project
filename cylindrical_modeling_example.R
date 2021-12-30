@@ -6,56 +6,73 @@ library(truncnorm)
 library(MCMCpack)
 library(label.switching)
 library(foreach)
+library(doParallel)
+library(abind)
+# numCores <- detectCores() - 1
+# numCores
 source("abe_ley_mixture_metropolis_hastings.R")
 source("graphical_helpers.R")
 
 # Single component Abe-Ley example from original Abe-Ley paper
-# true_par <- cbind( c(2), c(3), c(1), c(pi), c(0.5))
-# true_mix <- c(1)
-true_par <- cbind(c(2,4,6), c(.25, 1, 2), c(3,3,3), c(0, 2*pi/3, 4*pi/3)+pi/3, c(0,0,0), c(.33, .33, .33))
+true_par <- cbind(c(1,1,1), c(2,1,.5), c(1.5,1,0.5), c(6*pi/3,2*pi/3,4*pi/3)+pi/3, c(0,0,0), c(0.5, .25, 0.25))
 pars <- c("alpha", "beta", "kappa", "mu", "lambda", "tau")
 colnames(true_par) <- pars
-sample_dat2 <- rabeley_mixture(500, mix_prop = true_par[,"tau"],
+sample_dat2 <- rabeley_mixture(300, mix_prop = true_par[,"tau"],
                                mu = true_par[,"mu"], kappa = true_par[,"kappa"], lambda = true_par[,"lambda"],
                                alpha = true_par[,"alpha"], beta = true_par[,"beta"])
 
 joint_dist_plot(sample_dat2, mean_pars = true_par[,1:5], mix_prop = true_par[,6], main = "True Abe-Ley Mixture Density")
 true_par
 
-ctrl <- list(Q = 100, burnin = 50, sd_init = 1)
+ctrl <- list(Q = 5000, burnin = 2500, sd_init = 1, thin = 5)
 K <- 3
-# source("abe_ley_mixture_metropolis_hastings.R")
-fit <- foreach::foreach(i = 1:2, .packages = c("circular", "mvtnorm", "MASS", "MCMCpack", "truncnorm")) %dopar% {
-    MH_posterior_estimation(sample_dat2, K = K, control = ctrl)
+source("abe_ley_mixture_metropolis_hastings.R")
+fit <- foreach::foreach(i = 1:4, .packages = c("circular", "mvtnorm", "MASS", "MCMCpack", "truncnorm")) %dopar% {
+    try(MH_posterior_estimation(sample_dat2, K = K, control = ctrl), silent = F)
+}
+# fit <- MH_posterior_estimation(sample_dat2, K = K, control = ctrl)
+
+iters <- floor((ctrl$burnin+1)/thin):floor(ctrl$Q/thin)
+
+mcmc_pars <- fit[[1]]$mcmc_pars[iters,,]
+for (i in 2:4) {
+    if (is.vector(fit[[i]])) {
+        mcmc_pars <- abind(mcmc_pars, fit[[i]]$mcmc_pars[iters,,], along = 1)
+    }
+        
 }
 
-iters <- (ctrl$burnin+1):ctrl$Q
-mix_props <- apply(matrix(fit$mcmc_pars[iters,,6], ncol = K), 2, mean)
+mix_props <- apply(matrix(mcmc_pars[,,6], ncol = K), 2, mean)
 mix_props
 post_means <- matrix(numeric(5*K), ncol = 5)
 for (i in 1:5) {
-    post_means[,i] <- apply(matrix(fit$mcmc_pars[iters,,i], ncol = K), 2, mean)
+    post_means[,i] <- apply(matrix(mcmc_pars[,,i], ncol = K), 2, median)
 }
 colnames(post_means) <- pars[1:5]
 print(post_means)
 
-plot_tracestack(mcmc_pars = fit$mcmc_pars[iters,,], K = K, ctrl)
-plot_post_density(mcmc_pars = fit$mcmc_pars[iters,,], K = K, ctrl)
+plot_tracestack(mcmc_pars = mcmc_pars, K = K, ctrl)
+plot_post_density(mcmc_pars = mcmc_pars, K = K, ctrl)
 
 joint_dist_plot(sample_dat2, mean_pars = true_par, mix_prop = true_par[,6], main = "True Abe-Ley Mixture Density")
 joint_dist_plot(sample_dat2, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density")
 
 # Label-switching Fix
 
-mcmc.pars <- array(data = NA, dim = c(ctrl$Q - ctrl$burnin, K, 6))
-for (j in 1:6) {
-    # par_names <- colnames(fit$dist_pars[iters,0:(K-1) * 5 +j])
-    mcmc.pars[,,j] <- fit$mcmc_pars[iters,,j]
-    # dimnames(mcmc.pars[,,j]) <- par_names
+# mcmc.pars <- array(data = NA, dim = c(length(iters), K, 6))
+# for (j in 1:6) {
+#     # par_names <- colnames(fit$dist_pars[iters,0:(K-1) * 5 +j])
+#     mcmc.pars[,,j] <- mcmc_pars[,,j]
+#     # dimnames(mcmc.pars[,,j]) <- par_names
+# }
+# mcmc.pars[1:10,,]
+z <- fit[[1]]$class_labels[iters,]
+for (i in 2:4) {
+    if (is.vector(fit[[i]])) {
+        z <- abind(z, fit[[i]]$class_labels[iters,], along = 1)
+    }
+    
 }
-mcmc.pars[1:10,,]
-
-z <- fit$class_labels[iters, 1:nrow(sample_dat2)]
 # p <- array(data = NA, dim = c(nrow(z), ncol(z), K))
 # 
 # for (q in 1:length(iters)) {
@@ -67,7 +84,7 @@ z <- fit$class_labels[iters, 1:nrow(sample_dat2)]
 #                            alpha = par_1[1], beta = par_1[2]) / (dabeley_mixture(x = sample_dat2[,"x"], theta = sample_dat2[,"theta"], mix_prop = par_mix[,6], mu = par_mix[,4], kappa = par_mix[,3], lambda = par_mix[,5], alpha = par_mix[,1], beta = par_mix[,2]))
 #     }
 # }
-
+# 
 # complete.abeley.loglikelihood <- function(dat, z, pars) {
 #     # dat should be 2xn with col1 = theta and col2 = x
 #     # z should be Qxn allocation vector matrix
@@ -89,12 +106,12 @@ z <- fit$class_labels[iters, 1:nrow(sample_dat2)]
 #     return(sum(logl))
 # }
 
-# run <- label.switching::sjw(mcmc.pars = mcmc.pars, z = z, complete = complete.abeley.loglikelihood, x = dat, init = 1) # Doesn't Converge
+# run <- label.switching::sjw(mcmc.pars = mcmc.pars, z = z, complete = complete.abeley.loglikelihood, x = sample_dat2, init = 1) # Doesn't Converge
 run <- label.switching::dataBased(x = sample_dat2, K = K, z = z) # Doesn't work
 # run <- label.switching::ecr.iterative.1(z = z, K = K) # Doesn't work
 # run <- label.switching::ecr.iterative.2(z = z, K = K, p = p) # Doesn't converge
 # print(run$status)
-relabeled.mcmc <- label.switching::permute.mcmc(mcmc.pars, run$permutations)$output
+relabeled.mcmc <- label.switching::permute.mcmc(mcmc_pars, run$permutations)$output
 # for (j in 1:5) {
 #     par_names <- colnames(fit$dist_pars[iters,0:(K-1) * 5 +j])
 #     dimnames(relabeled.mcmc[,,j]) <- par_names
@@ -115,7 +132,7 @@ plot_tracestack(mcmc_pars = relabeled.mcmc[,,], K = K, ctrl)
 plot_post_density(mcmc_pars = relabeled.mcmc[,,], K = K, ctrl)
 
 joint_dist_plot(sample_dat2, mean_pars = true_par, mix_prop = true_par[,6], main = "True Abe-Ley Mixture Density")
-joint_dist_plot(sample_dat2, mean_pars = post_means, mix_prop = 1, main = "Fitted Abe-Ley Mixture Density")
+joint_dist_plot(sample_dat2, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density")
 
 # SSVM sampling test
 

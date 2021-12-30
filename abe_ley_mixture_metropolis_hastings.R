@@ -223,11 +223,11 @@ adjust_sd <- function(iter, sd_prev, R, accept_probs) {
     if ((iter %% 50) == 0){
         for (k in 1:5) {
             s <- min(c(0.01, sqrt(R / iter)))
-            if (accept_probs[k] > 0.44) {
-                sd_new[k] <- sd_prev[k] + s
+            if (accept_probs[k] > 0.35) {
+                sd_new[k] <- sqrt(sd_prev[k]^2 + s)
             }
             else {
-                sd_new[k] <- ifelse(sd_prev[k] - s > 0, sd_prev[k] - s, sd_prev[k])
+                sd_new[k] <- ifelse(sd_prev[k]^2 - s > 0, sqrt(sd_prev[k]^2 - s), sd_prev[k])
             }
         }
     }
@@ -235,7 +235,7 @@ adjust_sd <- function(iter, sd_prev, R, accept_probs) {
     return(sd_new)
 }
 
-MH_posterior_estimation <- function(dat, K, x.obs = NULL, control = list(Q = 2000, burnin = 1000, sd_init = 1)) {
+MH_posterior_estimation <- function(dat, K, x.obs = NULL, control = list(Q = 2000, burnin = 1000, sd_init = 1, thin = 1)) {
     # data should be:
     # theta     x
     # t1        x1
@@ -265,11 +265,9 @@ MH_posterior_estimation <- function(dat, K, x.obs = NULL, control = list(Q = 200
     }
     
     # Initialization
-    sd_prev <- matrix(rep(sd_init, 5*K), ncol = 5)
+    sd_prev <- matrix(rep(c(1,1, 1, 1, 1), 5*K), ncol = 5)
     nu_0 <- matrix(numeric(5*K), ncol = 5)
     for (k in 1:K) {
-        # mu_prev <- calc_prop_dist_means(c(1,1,1, 0, .5), sd_prev[(5*k-4):(5*k)])
-        # nu_0[(5*k-4):(5*k)] <- sample_proposal_dist(mu_prev = mu_prev, sd_prev = sd_prev[(5*k-4):(5*k)])
         nu_0[k,] <- sample_proposal_dist(mu_prev = c(1,1,1,(k-1)*pi/3,0), sd_prev = sd_prev[k,])
     }
     
@@ -302,12 +300,12 @@ MH_posterior_estimation <- function(dat, K, x.obs = NULL, control = list(Q = 200
         nu_prev <- matrix(chains[i,,1:5], nrow = K)
         nu_t <- matrix(numeric(5*K), nrow = K)
         for (k in 1:K) {
-            # comp_k_obs <- which(l_t == k)
-            # dat_k <- dat[comp_k_obs,]
+            ind.k <- which(l_chains[i,] == k)
+            dat_k <- dat[ind.k,]
             if (!is.null(x.obs)) {
-                dat_k <- rbind(dat, pred_dat)
+                dat_k <- rbind(dat_k, pred_dat)
             } else {
-                dat_k <- dat
+                dat_k <- dat_k
             }
             
             nu_prev_k <- nu_prev[k,]
@@ -315,11 +313,9 @@ MH_posterior_estimation <- function(dat, K, x.obs = NULL, control = list(Q = 200
                                     sd_prev = sd_prev[k,],
                                     accept_probs = a_probs[k,]/50)
             
-            # mu_prev <- calc_prop_dist_means(y_prev, sd_prev[(5*k-4):(5*k)])
             mu_prev <- nu_prev_k
             nu_star_k <- sample_proposal_dist(mu_prev, sd_prev[k,])
             mu_star <- nu_star_k
-            # mu_star <- calc_prop_dist_means(y_star, sd_prev[(5*k-4):(5*k)])
             A <- accept_ratio(dat_k, mu_star, mu_prev, sd_prev[k,])
             U <- runif(5)
             for (j in 1:5) {
@@ -366,7 +362,9 @@ MH_posterior_estimation <- function(dat, K, x.obs = NULL, control = list(Q = 200
     }
     end <- Sys.time()
     print(paste0("Total time elapsed: ", round(end - start, 3)))
-    return(list(mcmc_pars = chains, class_labels = l_chains, theta_pred = theta_pred))
+    
+    thin_index <- 1:floor(Q / thin) * ctrl$thin
+    return(list(mcmc_pars = chains[thin_index,,], class_labels = l_chains[thin_index,], theta_pred = theta_pred[thin_index,]))
 }
 
 
