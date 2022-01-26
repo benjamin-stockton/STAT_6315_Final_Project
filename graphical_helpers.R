@@ -10,7 +10,7 @@ source("abe_ley_mixture_metropolis_hastings.R")
 
 # Plotting Functions
 
-cyl_density_plot <- function(dat, mean_pars, mix_prop, main = "Joint Distibution on the Cylinder", xlab = "$\\theta$", ylab = "X") {
+cyl_density_plot <- function(dat, mean_pars, mix_prop, main = "Joint Distibution on the Cylinder", xlab = "$\\theta$", ylab = "X", nlevels = 10) {
     x_seq <- seq(from = min(dat[,2]), to = max(dat[,2]), length.out = 50)
     t_seq <-  seq(from = min(dat[,1]), to = max(dat[,1]), length.out = 50)
     
@@ -21,8 +21,8 @@ cyl_density_plot <- function(dat, mean_pars, mix_prop, main = "Joint Distibution
     
     plot(dat[,1], dat[,2], pch = 16, col = "black",
          main = TeX(main), xlab = TeX(xlab), ylab = TeX(ylab), xlim = c(0, 2*pi))
-    contour(x = t_seq, y = x_seq, z = z, lwd = 2, add = TRUE, nlevels = 10,
-            col = hcl.colors(10, "Spectral"))
+    contour(x = t_seq, y = x_seq, z = z, lwd = 2, add = TRUE, nlevels = nlevels,
+            col = hcl.colors(nlevels, "Spectral"))
 }
 
 hist_density <- function(dat, main = "Distribution of X", xlab = "", ylab = "Density", lhist = 10,...) {
@@ -33,13 +33,13 @@ hist_density <- function(dat, main = "Distribution of X", xlab = "", ylab = "Den
     lines(x = dx$x, y = dx$y * length(dat) * diff(hx$breaks)[1], lwd = 2)
 }
 
-joint_dist_plot <- function(dat, mean_pars, mix_prop, main = "", xlab = "$\\theta$", ylab = "X", lhist = 20) {
+joint_dist_plot <- function(dat, mean_pars, mix_prop, main = "", xlab = "$\\theta$", ylab = "X", lhist = 20, nlevels = 10) {
     layout(matrix(c(2,0,1,3), nrow = 2, byrow = T),
            widths = c(3,1), heights = c(1,3), respect = T)
     
     par. <- par(mar = c(4, 4, 1,1), oma = rep(.5, 4))
     
-    cyl_density_plot(dat = dat, mean_pars = mean_pars, mix_prop = mix_prop, main = main, xlab = xlab, ylab = ylab)
+    cyl_density_plot(dat = dat, mean_pars = mean_pars, mix_prop = mix_prop, main = main, xlab = xlab, ylab = ylab, nlevels = nlevels)
     
     t_hist <- hist(dat[,1], plot = F, breaks = seq(from = min(dat[,1]), to = max(dat[,1]),
                                                    length.out = lhist))
@@ -113,7 +113,7 @@ plot_tracestack <- function(mcmc_pars, K, ctrl) {
         m_props <- matrix(mcmc_pars[,,6], ncol = K)
         mix_props <- apply(m_props, 2, mean)
         # print(mix_props)
-        iter <- 1:nrow(m_props)
+        iter <- 1:(dim(mcmc_pars)[1])
         
         param <- c("alpha", "beta", "kappa", "mu", "lambda", "tau")
         post_means <- matrix(numeric(5*K), ncol = 5)
@@ -126,14 +126,15 @@ plot_tracestack <- function(mcmc_pars, K, ctrl) {
         for (j in 1:6) {
             if (j == 6) {
                 print(paste0("$\\", param[j], "_", 1, "$"))
-                print(quantile(m_props[,1]), probs = c(.025, .05, .25, .5, .75, .95, .975))
-                plot(iter, m_props[, 1], type = "l",
+                print(quantile(mcmc_pars[,1,j]), probs = c(.025, .05, .25, .5, .75, .95, .975))
+                plot(iter, mcmc_pars[,1,j], type = "l",
                      main = TeX(paste0("Chain for $\\", param[j], "$")),
-                     xlab = "t", ylab = TeX(paste0("$\\", param[j], "$")))
+                     xlab = "t", ylab = TeX(paste0("$\\", param[j], "$")), 
+                     ylim = c(min(m_props), max(m_props)))
                 for (k in 2:K) {
                     print(paste0("$\\", param[j], "_", k, "$"))
                     print(quantile(m_props[,k]), probs = c(.025, .05, .25, .5, .75, .95, .975))
-                    lines(iter, m_props[, k], col = cols[k])
+                    lines(iter, mcmc_pars[,k,j], col = cols[k])
                     abline(h = mix_props[k], col = "red", lty = "dashed")
                 }
             } else {
@@ -141,7 +142,8 @@ plot_tracestack <- function(mcmc_pars, K, ctrl) {
                 print(quantile(mcmc_pars[,1,j]), probs = c(.025, .05, .25, .5, .75, .95, .975))
                 plot(iter, mcmc_pars[,1,j], type = "l",
                      main = TeX(paste0("Chain for $\\", param[j], "$")),
-                     xlab = "t", ylab = TeX(paste0("$\\", param[j], "$")))
+                     xlab = "t", ylab = TeX(paste0("$\\", param[j], "$")), 
+                     ylim = c(min(mcmc_pars[,,j]), max(mcmc_pars[,,j])))
                 if (j == 4) {
                     mu_hat <- as.numeric(mean.circular(circular(mcmc_pars[,1,j])))
                     abline(h = mu_hat, col = "red", lty = "dashed")
@@ -168,16 +170,18 @@ plot_tracestack <- function(mcmc_pars, K, ctrl) {
 plot_post_density <- function(mcmc_pars, K, ctrl) {
     pars <- c("alpha", "beta", "kappa", "mu", "lambda", "tau")
     par(mfrow = c(2,3))
-    cols <- brewer.pal(6, "Dark2")
+    cols <- brewer.pal(K, "Dark2")
     
     for (j in 1:6) {
         d <- density(mcmc_pars[,1,j])
-        plot(d, main = TeX(paste0("Posterior Density of $\\", pars[j], "$")), xlab = TeX(paste0("$\\", pars[j], "$")), lwd = 2, col = cols[j])
+        plot(d, main = TeX(paste0("Posterior Density of $\\", pars[j], "$")),
+             xlab = TeX(paste0("$\\", pars[j], "$")), lwd = 2, col = cols[1], 
+             xlim = c(min(mcmc_pars[,,j]), max(mcmc_pars[,,j])))
         # polygon(d, lwd = 2, border = cols[j])
         if (K >= 2) {
             for (k in 2:K) {
                 d <- density(mcmc_pars[,k,j])
-                lines(d$x, d$y, lwd = 2, col = cols[j])
+                lines(d$x, d$y, lwd = 2, col = cols[k])
             }
         }
         

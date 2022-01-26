@@ -13,30 +13,43 @@ library(abind)
 source("abe_ley_mixture_metropolis_hastings.R")
 source("graphical_helpers.R")
 
-# Single component Abe-Ley example from original Abe-Ley paper
-true_par <- cbind(c(1,1,1), c(2,1,.5), c(1.5,1,0.5), c(6*pi/3,2*pi/3,4*pi/3)+pi/3, c(0,0,0), c(0.5, .25, 0.25))
+# true_par <- cbind(c(2,2,10), c(1, 0.2, 0.1), c(1,3,2), c(0, pi, pi/2), c(0.5,-1,.8), c(0,0,1))
+# true_par <- cbind(c(1,2,10), c(0.07, 0.2, 0.01), c(1,3,2), c(0, pi, pi/2), c(0,-1,.8), c(1/3,1/3,1/3))
+true_par <- cbind(c(1,2,10,3), c(0.07, 0.2, 0.04,1), c(1,3,2,3), c(0, pi, pi/2,2*pi/3), c(0,-1,.8,.5), c(.31, .18, .24, .27))
 pars <- c("alpha", "beta", "kappa", "mu", "lambda", "tau")
-colnames(true_par) <- pars
-sample_dat2 <- rabeley_mixture(300, mix_prop = true_par[,"tau"],
+colnames(true_par) <- pars; N <- 500
+sample_dat2 <- rabeley_mixture(N, mix_prop = true_par[,"tau"],
                                mu = true_par[,"mu"], kappa = true_par[,"kappa"], lambda = true_par[,"lambda"],
                                alpha = true_par[,"alpha"], beta = true_par[,"beta"])
-
-joint_dist_plot(sample_dat2, mean_pars = true_par[,1:5], mix_prop = true_par[,6], main = "True Abe-Ley Mixture Density")
+joint_dist_plot(sample_dat2, mean_pars = true_par[,1:5], mix_prop = true_par[,6],
+                main = "True Abe-Ley Mixture Density",
+                nlevels = 15)
 true_par
-
-ctrl <- list(Q = 5000, burnin = 2500, sd_init = 1, thin = 5)
-K <- 3
+# log(dabeley(x = sample_dat2[,2], t = sample_dat2[,1], alpha = 2, beta = 0.2, kappa = 3, mu = pi, lambda = -1))
+Q <- 10000
+K <- 4
+hp <- list(alpha_shape = 1000, alpha_scale = 0.001,
+           beta_shape = 1000, beta_scale = 0.001,
+           kappa_shape = 1000, kappa_scale = 0.001,
+           mu_mean = 0, mu_conc = 0.001,
+           lambda_a = 1, lambda_b = 1, alpha0 = 1/K)
+ctrl <- list(Q = Q, burnin = floor(Q/2), sd_init = 1, thin = 5)
 source("abe_ley_mixture_metropolis_hastings.R")
-fit <- foreach::foreach(i = 1:4, .packages = c("circular", "mvtnorm", "MASS", "MCMCpack", "truncnorm")) %dopar% {
-    try(MH_posterior_estimation(sample_dat2, K = K, control = ctrl), silent = F)
+fit <- foreach::foreach(i = 1:2, .packages = c("circular", "mvtnorm", "MASS", "MCMCpack", "truncnorm")) %dopar% {
+    try(MH_posterior_estimation(sample_dat2, K = K, control = ctrl, hyperpar = hp), silent = F)
 }
-# fit <- MH_posterior_estimation(sample_dat2, K = K, control = ctrl)
+# fit <- MH_posterior_estimation(sample_dat2, K = K, control = ctrl, hyperpar = hp)
 
-iters <- floor((ctrl$burnin+1)/thin):floor(ctrl$Q/thin)
+iters <- floor((ctrl$burnin+1)/ctrl$thin):floor(ctrl$Q/ctrl$thin)
 
-mcmc_pars <- fit[[1]]$mcmc_pars[iters,,]
-for (i in 2:4) {
+for (i in 1:2) {
     if (is.vector(fit[[i]])) {
+        guaranteed_fit <- i
+    }
+}
+mcmc_pars <- fit[[guaranteed_fit]]$mcmc_pars[iters,,]
+for (i in 1:2) {
+    if (is.vector(fit[[i]]) & i != guaranteed_fit) {
         mcmc_pars <- abind(mcmc_pars, fit[[i]]$mcmc_pars[iters,,], along = 1)
     }
         
@@ -54,8 +67,8 @@ print(post_means)
 plot_tracestack(mcmc_pars = mcmc_pars, K = K, ctrl)
 plot_post_density(mcmc_pars = mcmc_pars, K = K, ctrl)
 
-joint_dist_plot(sample_dat2, mean_pars = true_par, mix_prop = true_par[,6], main = "True Abe-Ley Mixture Density")
-joint_dist_plot(sample_dat2, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density")
+joint_dist_plot(sample_dat2, mean_pars = true_par, mix_prop = true_par[,6], main = "True Abe-Ley Mixture Density", nlevels = 15)
+joint_dist_plot(sample_dat2, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density", nlevels = 15)
 
 # Label-switching Fix
 
@@ -66,9 +79,9 @@ joint_dist_plot(sample_dat2, mean_pars = post_means, mix_prop = mix_props, main 
 #     # dimnames(mcmc.pars[,,j]) <- par_names
 # }
 # mcmc.pars[1:10,,]
-z <- fit[[1]]$class_labels[iters,]
-for (i in 2:4) {
-    if (is.vector(fit[[i]])) {
+z <- fit[[guaranteed_fit]]$class_labels[iters,]
+for (i in 1:2) {
+    if (is.vector(fit[[i]]) & i != guaranteed_fit) {
         z <- abind(z, fit[[i]]$class_labels[iters,], along = 1)
     }
     
@@ -131,20 +144,8 @@ print(post_means)
 plot_tracestack(mcmc_pars = relabeled.mcmc[,,], K = K, ctrl)
 plot_post_density(mcmc_pars = relabeled.mcmc[,,], K = K, ctrl)
 
-joint_dist_plot(sample_dat2, mean_pars = true_par, mix_prop = true_par[,6], main = "True Abe-Ley Mixture Density")
-joint_dist_plot(sample_dat2, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density")
-
-# SSVM sampling test
-
-mu <- pi; kappa <- 1; lambda <- 1
-y_seq <- seq(0,2*pi, length.out = 200)
-y <- rssvm(100, mu = mu, kappa = kappa, lambda = lambda) %% (2*pi)
-plot(density(circular(y), bw = 10), shrink = 1.25)
-points(circular(y))
-
-hist(y, xlim = c(0,2*pi), breaks = 25, freq = F)
-lines(y_seq, dssvm(y_seq, mu, kappa, lambda))
-abline(v = mu, col = 'blue', lty = "dashed")
+joint_dist_plot(sample_dat2, mean_pars = true_par, mix_prop = true_par[,6], main = "True Abe-Ley Mixture Density", nlevels = 15)
+joint_dist_plot(sample_dat2, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density", nlevels = 15)
 
 # Now trying it with missing data
 # 10% missing in theta
