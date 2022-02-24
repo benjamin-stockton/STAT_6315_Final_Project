@@ -8,15 +8,20 @@ library(lubridate)
 library(astsa)
 library(ggplot2)
 library(xtable)
-source("~/Documents/Research/RCode/Schafer_Graham_Example/weighted_circular_regression_cl.R")
-source("~/Documents/Research/RCode/Schafer_Graham_Example/imputation_funcs.R")
+library(foreach)
+library(abind)
+library(Rcpp)
+library(RcppGSL)
+library(RcppArmadillo)
+source("~/Documents/Research/CL-Regression_MI/weighted_circular_regression_cl.R")
+source("~/Documents/Research/CL-Regression_MI/imputation_funcs.R")
 source("abe_ley_mixture_metropolis_hastings.R")
 source("graphical_helpers.R")
 rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 theme_set(theme_classic())
 
-dat <- read.csv("~/Documents/Research/RCode/Data/aqi_sample_data_42101_61103_61104_bdate_20140101_edate_20201231_state_55_county_079_site_0056.csv", header = T, stringsAsFactors = F) %>% dplyr::select(!X)
+dat <- read.csv("~/Documents/Research/Data/aqi_sample_data_42101_61103_61104_bdate_20140101_edate_20201231_state_55_county_079_site_0056.csv", header = T, stringsAsFactors = F) %>% dplyr::select(!X)
 
 # Data Overview
 
@@ -87,42 +92,62 @@ adat
 comp.adat <- adat[3:13,]
 obs.x <- adat[1:2,"x"]
 
-cdat.jan.2017 <- dat.2017 %>% filter(!is.na(sample_measurement_42101),
+cdat.apr.2017 <- dat.2017 %>% filter(!is.na(sample_measurement_42101),
                                      !is.na(sample_measurement_61103),
                                      month(datetime_gmt) == 4) %>% dplyr::select(sample_measurement_61104, sample_measurement_42101)
 x.obs <- dat.2017 %>% filter(is.na(sample_measurement_61104), 
                              !is.na(sample_measurement_42101), 
                              month(datetime_gmt) == 4) %>% dplyr::select(sample_measurement_42101)
 x.obs <- x.obs$sample_measurement_42101
-colnames(cdat.jan.2017) <- c("theta", "x")
-summary(cdat.jan.2017)
-cdat.jan.2017$theta %<>% as.numeric()
+colnames(cdat.apr.2017) <- c("theta", "x")
+summary(cdat.apr.2017)
+cdat.apr.2017$theta %<>% as.numeric()
 
 par(mfrow = c(1,1))
-plot(cdat.jan.2017$theta, cdat.jan.2017$x, pch = 16,
-     main = "Wind Directions and Carbon Monoxide Distribution for Jan. 2017",
+plot(cdat.apr.2017$theta, cdat.apr.2017$x, pch = 16,
+     main = "Wind Directions and Carbon Monoxide Distribution for April 2017",
      xlab = TeX("Wind Direction $\\theta$ (rad)"), ylab = "Carbon Monoxide")
 # plot(comp.adat$theta, comp.adat$x, pch = 16, xlab = TeX("Wind Direction $\\theta$ (rad)"), ylab = "Carbon Monoxide")
 
 
 source("abe_ley_mixture_metropolis_hastings.R")
-Q <- 5000
-ctrl <- list(Q = Q, burnin = floor(Q/2), sd_init = 1, thin = 5)
-K <- 4
-fit <- foreach::foreach(i = 1:4, .packages = c("circular", "mvtnorm", "MASS", "MCMCpack", "truncnorm")) %dopar% {
-    # try(MH_posterior_estimation(as.matrix(comp.adat), K = K, control = ctrl), silent = F)
-    try(MH_posterior_estimation(as.matrix(cdat.jan.2017), K = K, control = ctrl), silent = F)
-}
+sourceCpp("abe_ley_MM_sampler.cpp")
+# Q <- 5000
+# ctrl <- list(Q = Q, burnin = floor(Q/2), sd_init = 1, thin = 5)
+# K <- 4
+# fit <- foreach::foreach(i = 1:4, .packages = c("circular", "mvtnorm", "MASS", "MCMCpack", "truncnorm")) %dopar% {
+#     # try(MH_posterior_estimation(as.matrix(comp.adat), K = K, control = ctrl), silent = F)
+#     try(MH_posterior_estimation(as.matrix(cdat.apr.2017), K = K, control = ctrl), silent = F)
+# }
 
-iters <- floor((ctrl$burnin+1)/thin):floor(ctrl$Q/thin)
-mcmc_pars <- fit[[1]]$mcmc_pars[iters,,]
-for (i in 2:4) {
-    if (is.vector(fit[[i]])) {
-        mcmc_pars <- abind(mcmc_pars, fit[[i]]$mcmc_pars[iters,,], along = 1)
-    }
-    
-}
+Q <- 50000
+K <- 2
+hp <- list(alpha_shape = .5, alpha_scale = 2,
+           beta_shape = .5, beta_scale = 2,
+           kappa_shape = .5, kappa_scale = 2,
+           mu_mean = 0, mu_conc = 0.001,
+           lambda_a = 1, lambda_b = 1, alpha0 = 1/K)
+ctrl <- list(Q = Q, burnin = floor(Q/2), sd_init = 5, thin = 5)
+# sourceCpp("abe_ley_MM_sampler.cpp")
+fit <- abeley_MM_sampler_MH_cpp(as.matrix(cdat.apr.2017), K = K, control = ctrl, hyperpar = hp)
 
+# plot_tracestack(mcmc_pars = fit$chains, K = K, ctrl)
+
+iters <- floor((ctrl$Q-15000)/ctrl$thin):floor(ctrl$Q/ctrl$thin) * ctrl$thin
+
+# iters <- floor((ctrl$burnin+1)/thin):floor(ctrl$Q/thin)
+# for (i in 1:2) {
+#     if (is.vector(fit[[i]])) {
+#         guaranteed_fit <- i
+#     }
+# }
+# mcmc_pars <- fit[[guaranteed_fit]]$mcmc_pars[iters,,]
+# for (i in 1:2) {
+#     if (is.vector(fit[[i]]) & i != guaranteed_fit) {
+#         mcmc_pars <- abind(mcmc_pars, fit[[i]]$mcmc_pars[iters,,], along = 1)
+#     }
+# }
+mcmc_pars <- fit$chains[iters,,]
 mix_props <- apply(matrix(mcmc_pars[,,6], ncol = K), 2, mean)
 mix_props
 post_means <- matrix(numeric(5*K), ncol = 5)
@@ -137,18 +162,19 @@ plot_post_density(mcmc_pars = mcmc_pars, K = K, ctrl)
 
 # joint_dist_plot(comp.adat, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density", nlevels = 15)
 
-joint_dist_plot(cdat.jan.2017, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density", nlevels = 15)
+joint_dist_plot(cdat.apr.2017, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density", nlevels = 15)
 
 # Label-switching Fix
 
-z <- fit[[1]]$class_labels[iters,]
-for (i in 2:4) {
-    if (is.vector(fit[[i]])) {
-        z <- abind(z, fit[[i]]$class_labels[iters,], along = 1)
-    }
-    
-}
-run <- label.switching::dataBased(x = as.matrix(cdat.jan.2017), K = K, z = z) 
+z <- fit$class_labels[iters,]
+# z <- fit[[guaranteed_fit]]$class_labels[iters,]
+# for (i in 1:2) {
+#     if (is.vector(fit[[i]]) & i != guaranteed_fit) {
+#         z <- abind(z, fit[[i]]$class_labels[iters,], along = 1)
+#     }
+#     
+# }
+run <- label.switching::dataBased(x = as.matrix(cdat.apr.2017), K = K, z = z) 
 relabeled.mcmc <- label.switching::permute.mcmc(mcmc_pars, run$permutations)$output
 
 mix_props <- apply(matrix(relabeled.mcmc[,,6], ncol = K), 2, mean)
@@ -164,29 +190,8 @@ plot_tracestack(mcmc_pars = relabeled.mcmc[,,], K = K, ctrl)
 plot_post_density(mcmc_pars = relabeled.mcmc[,,], K = K, ctrl)
 
 # joint_dist_plot(comp.adat, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density", nlevels = 15)
-plot(cdat.jan.2017$theta, cdat.jan.2017$x)
-fl <- kde2d(cdat.jan.2017$theta, cdat.jan.2017$x, lims = c(0, 2*pi, 0, max(cdat.jan.2017$x)))
-contour(fl, xlab = "Angle", ylab = "CO2", nlevels = 10, add = T, lwd = 1.5)
-joint_dist_plot(cdat.jan.2017, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density", nlevels = 15)
+plot(cdat.apr.2017$theta, cdat.apr.2017$x)
+fl <- kde2d(cdat.apr.2017$theta, cdat.apr.2017$x, lims = c(0, 2*pi, 0, max(cdat.apr.2017$x)))
+contour(fl, xlab = "Angle", ylab = "CO2", nlevels = 7, add = T, lwd = 1.5)
+joint_dist_plot(cdat.apr.2017, mean_pars = post_means, mix_prop = mix_props, main = "Fitted Abe-Ley Mixture Density", nlevels = 15)
 
-fit$dist_pars[,4] <- circular(fit$dist_pars[,4])
-out_tab <- round(t(apply(fit$dist_pars, 2, quantile, probs = c(0.025, 0.05, .25,.5,.75,.95,.975))), 4)
-rownames(out_tab) <- c("$\\alpha$", "$\\beta$", "$\\kappa$", "$\\mu$", "$\\lambda$")
-xtable(out_tab, caption = "Posterior Quantiles of the Abe-Ley distribution from MCMC samples")
-
-# alpha <- 2.3
-# beta <- 4.94
-# kappa <- post_means[1,3]
-# mu <- post_means[1,4]
-# lambda <- post_means[1,5]
-# scale_par <- 1/(beta * (1 - tanh(kappa) * cos(0))^(1/alpha))
-# scale_par * log(2)^(1/alpha)
-
-s <- sample(iters, size = 1)
-plot(fit$theta_pred[s,] %% (2*pi), x.obs, pch = 16,
-     main = "Distribution of Draws from the Predictive Dist.",
-     xlab = TeX("$\\theta_{pred}$"), ylab = "X")
-for (i in 1:100) {
-    s <- sample(iters, size = 1)
-    points(fit$theta_pred[s,] %% (2*pi), x.obs)
-}
