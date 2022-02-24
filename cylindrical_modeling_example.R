@@ -14,8 +14,8 @@ source("abe_ley_mixture_metropolis_hastings.R")
 source("graphical_helpers.R")
 
 # true_par <- cbind(c(2,2,10), c(1, 0.2, 0.1), c(1,3,2), c(0, pi, pi/2), c(0.5,-1,.8), c(0,0,1))
-# true_par <- cbind(c(1,2,10), c(0.07, 0.2, 0.01), c(1,3,2), c(0, pi, pi/2), c(0,-1,.8), c(1/3,1/3,1/3))
-true_par <- cbind(c(1,2,10,3), c(0.07, 0.2, 0.04,1), c(1,3,2,3), c(0, pi, pi/2,2*pi/3), c(0,-1,.8,.5), c(.31, .18, .24, .27))
+true_par <- cbind(c(1,2,10), c(0.07, 0.2, 0.01), c(1,3,2), c(0, pi, pi/2), c(0,-1,.8), c(1/3,1/3,1/3))
+# true_par <- cbind(c(1,2,10,3), c(0.07, 0.2, 0.04,1), c(1,3,2,3), c(0, pi, pi/2,2*pi/3), c(0,-1,.8,.5), c(.31, .18, .24, .27))
 pars <- c("alpha", "beta", "kappa", "mu", "lambda", "tau")
 colnames(true_par) <- pars; N <- 500
 sample_dat2 <- rabeley_mixture(N, mix_prop = true_par[,"tau"],
@@ -26,8 +26,8 @@ joint_dist_plot(sample_dat2, mean_pars = true_par[,1:5], mix_prop = true_par[,6]
                 nlevels = 15)
 true_par
 # log(dabeley(x = sample_dat2[,2], t = sample_dat2[,1], alpha = 2, beta = 0.2, kappa = 3, mu = pi, lambda = -1))
-Q <- 10000
-K <- 4
+Q <- 5000
+K <- 3
 hp <- list(alpha_shape = 1000, alpha_scale = 0.001,
            beta_shape = 1000, beta_scale = 0.001,
            kappa_shape = 1000, kappa_scale = 0.001,

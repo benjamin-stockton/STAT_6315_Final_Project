@@ -6,8 +6,9 @@ library(truncnorm)
 library(MCMCpack)
 library(RColorBrewer)
 
-
-# Abe-Ley Distribution random variable draw
+##########################################################
+# Density Functions
+##########################################################
 
 dabeley <- function(x, theta, mu, kappa, lambda, alpha, beta) {
     const <- alpha * beta^alpha / (2*pi * cosh(kappa))
@@ -15,6 +16,67 @@ dabeley <- function(x, theta, mu, kappa, lambda, alpha, beta) {
     weib <- x^(alpha - 1) * exp(-(beta * x)^alpha * (1 - tanh(kappa) * cos(theta - mu)))
     return(const * wc * weib)
 }
+
+dbeta_rescale <- function(x, shape1 = 1, shape2 = 1) {
+    return(dbeta((x/2 + 1/2), shape1 = shape1, shape2 = shape2)/2)
+}
+
+dssvm <- function(theta, mu, kappa, lambda) {
+    const <- (2*pi * I.0(kappa))^-1
+    skew <- (1 + lambda * sin(theta - mu))
+    kern <- exp(kappa*cos(theta - mu))
+    return(const * skew * kern)
+}
+
+dsswc <- function(theta, mu, kappa, lambda) {
+    const <- (1 - tanh(kappa/2)^2) / (2*pi)
+    num <- 1 + lambda * sin(theta - mu)
+    denom <- 1 + tanh(kappa/2)^2 - 2*tanh(kappa/2) * cos(theta - mu)
+    return(const * num / denom)
+}
+
+dmodweib <- function(x, alpha, beta, kappa) {
+    const <- alpha * beta^alpha * I.0(x^alpha * beta^alpha * tanh(kappa)) / cosh(kappa) 
+    kern <- x^(alpha-1) * exp(-(beta*x)^alpha)
+    return(const * kern)
+}
+
+dsswc_mixture <- function(theta, mu, kappa, lambda, tau) {
+    K <- length(tau)
+    d <- 0
+    
+    for (k in 1:K) {
+        d <- d + tau[k] * dsswc(theta, mu = mu[k], kappa = kappa[k], lambda[k])
+    }
+    return(d)
+}
+
+dmodweibull_mixture <- function(x, alpha, beta, kappa, tau) {
+    K <- length(tau)
+    d <- 0
+    
+    for (k in 1:K) {
+        d <- d + tau[k] * dmodweib(x, alpha = alpha[k], beta = beta[k], kappa = kappa[k])
+    }
+    return(d)
+}
+
+# Mixture Abe-Ley Simulated Data
+dabeley_mixture <- function(x,theta, mix_prop, mu, kappa, lambda, alpha, beta) {
+    K <- length(mix_prop)
+    
+    d <- 0
+    
+    for (k in 1:K) {
+        d <- d + mix_prop[k] * dabeley(x = x, theta = theta, mu = mu[k], kappa = kappa[k],
+                                       lambda = lambda[k], alpha = alpha[k], beta = beta[k])
+    }
+    return(d)
+}
+
+##########################################################
+## RNG Functions
+##########################################################
 
 rabeley <- function(n, mu, kappa, lambda, alpha, beta) {
     dat <- matrix(numeric(2*n), ncol = 2)
@@ -42,48 +104,10 @@ rsswc <- function(n, mu, kappa, lambda) {
     return(t %% (2*pi))
 }
 
-dbeta_rescale <- function(x, shape1 = 1, shape2 = 1) {
-    return(dbeta((x/2 + 1/2), shape1 = shape1, shape2 = shape2)/2)
-}
-
 rbeta_rescale <- function(n, shape1 = 1, shape2 = 1) {
     U <- rbeta(n, shape1 = shape1, shape2 = shape2)
     V <- 2 * U - 1
     return(V)
-}
-
-dssvm <- function(theta, mu, kappa, lambda) {
-    const <- (2*pi * I.0(kappa))^-1
-    skew <- (1 + lambda * sin(theta - mu))
-    kern <- exp(kappa*cos(theta - mu))
-    return(const * skew * kern)
-}
-
-dsswc <- function(theta, mu, kappa, lambda) {
-    const <- (1 - tanh(kappa/2)^2) / (2*pi)
-    num <- 1 + lambda * sin(theta - mu)
-    denom <- 1 + tanh(kappa/2)^2 - 2*tanh(kappa/2) * cos(theta - mu)
-    return(const * num / denom)
-}
-
-dmodweib <- function(x, alpha, beta, kappa) {
-    const <- alpha * beta^alpha * I.0(x^alpha * beta^alpha * tanh(kappa)) / cosh(kappa) 
-    kern <- x^(alpha-1) * exp(-(beta*x)^alpha)
-    return(const * kern)
-}
-
-
-# Mixture Abe-Ley Simulated Data
-dabeley_mixture <- function(x,theta, mix_prop, mu, kappa, lambda, alpha, beta) {
-    K <- length(mix_prop)
-    
-    d <- 0
-    
-    for (k in 1:K) {
-        d <- d + mix_prop[k] * dabeley(x = x, theta = theta, mu = mu[k], kappa = kappa[k],
-                                       lambda = lambda[k], alpha = alpha[k], beta = beta[k])
-    }
-    return(d)
 }
 
 rabeley_mixture <- function(N, mix_prop, mu, kappa, lambda, alpha, beta) {
@@ -106,26 +130,6 @@ rssvm_mixture <- function(N, mix_prop, mu, kappa, lambda) {
         t[i] <- rssvm(1, mu[k], kappa[k], lambda[k])
     }
     return(t)
-}
-
-dsswc_mixture <- function(theta, mu, kappa, lambda, tau) {
-    K <- length(tau)
-    d <- 0
-    
-    for (k in 1:K) {
-        d <- d + tau[k] * dsswc(theta, mu = mu[k], kappa = kappa[k], lambda[k])
-    }
-    return(d)
-}
-
-dmodweibull_mixture <- function(x, alpha, beta, kappa, tau) {
-    K <- length(tau)
-    d <- 0
-    
-    for (k in 1:K) {
-        d <- d + tau[k] * dmodweib(x, alpha = alpha[k], beta = beta[k], kappa = kappa[k])
-    }
-    return(d)
 }
 
 ############################################################
@@ -190,10 +194,10 @@ accept_ratio <- function(dat, y_star, y_prev, sd_prev, hyperpar = list(alpha_sha
             J_star <- dtruncnorm(y_star[i], a = 0, mean = y_prev[i], sd = sd_prev[i])
         }
         else if (i == 4) {
-            p_ystar <- dvonmises(y_star[i], mu = circular(hyperpar$mu_mean), kappa = hyperpar$mu_conc)
-            p_prev <- dvonmises(y_prev[i], mu = circular(hyperpar$mu_mean), kappa = hyperpar$mu_conc)
-            J_star <- dwrappednormal(y_star[i], mu = circular(y_prev[i]), sd = sd_prev[i])
-            J_prev <- dwrappednormal(y_prev[i], mu = circular(y_star[i]), sd = sd_prev[i])
+            p_ystar <- dvonmises(circular(y_star[i]), mu = circular(hyperpar$mu_mean), kappa = hyperpar$mu_conc)
+            p_prev <- dvonmises(circular(y_prev[i]), mu = circular(hyperpar$mu_mean), kappa = hyperpar$mu_conc)
+            J_star <- dwrappednormal(circular(y_star[i]), mu = circular(y_prev[i]), sd = sd_prev[i])
+            J_prev <- dwrappednormal(circular(y_prev[i]), mu = circular(y_star[i]), sd = sd_prev[i])
         }
         else {
             p_ystar <- dbeta_rescale(y_star[i], hyperpar$lambda_a, hyperpar$lambda_b)
@@ -253,7 +257,7 @@ adjust_sd <- function(iter, sd_prev, R, accept_probs) {
                 sd_new[k] <- sqrt(sd_prev[k]^2 + s)
             }
             else {
-                sd_new[k] <- ifelse(sqrt(sd_prev[k]^2 - s) > 0, sqrt(sd_prev[k] - s), sd_prev[k])
+                sd_new[k] <- ifelse(sqrt(sd_prev[k]^2 - s) > 0, sqrt(sd_prev[k]^2 - s), sd_prev[k])
             }
         }
     }

@@ -34,12 +34,17 @@ hist_density <- function(dat, main = "Distribution of X", xlab = "", ylab = "Den
 }
 
 joint_dist_plot <- function(dat, mean_pars, mix_prop, main = "", xlab = "$\\theta$", ylab = "X", lhist = 20, nlevels = 10) {
-    layout(matrix(c(2,0,1,3), nrow = 2, byrow = T),
-           widths = c(3,1), heights = c(1,3), respect = T)
+    layout(matrix(c(3,1,
+                    2,4), nrow = 2, byrow = T),
+           widths = c(3,2), heights = c(1,3), respect = T)
     
     par. <- par(mar = c(4, 4, 1,1), oma = rep(.5, 4))
+    par(mar = c(1,1,0,0))
+    plot.new()
+    title(main = main)
+    legend("bottomleft", legend = c("Kernel Density", "Fitted Abe-Ley \n Density"), col = c("black", "blue"), lty = c("solid", "dashed"), lwd = c(2,1))
     
-    cyl_density_plot(dat = dat, mean_pars = mean_pars, mix_prop = mix_prop, main = main, xlab = xlab, ylab = ylab, nlevels = nlevels)
+    cyl_density_plot(dat = dat, mean_pars = mean_pars, mix_prop = mix_prop, main = "", xlab = xlab, ylab = ylab, nlevels = nlevels)
     
     t_hist <- hist(dat[,1], plot = F, breaks = seq(from = min(dat[,1]), to = max(dat[,1]),
                                                    length.out = lhist))
@@ -53,20 +58,25 @@ joint_dist_plot <- function(dat, mean_pars, mix_prop, main = "", xlab = "$\\thet
     
     fit_xd <- dmodweibull_mixture(xd$x, alpha = mean_pars[,1], beta = mean_pars[,2], kappa = mean_pars[,3], tau = mix_prop)
     
+    dens_t <- cbind(td$y, fit_td) * length(dat[,1]) * diff(t_hist$breaks)[1]
+    dens_x <- cbind(xd$y, fit_xd) * length(dat[,2]) * diff(x_hist$breaks)[1]
+    
     par(mar = c(0, 4, 0,0))
-    plot(t_hist, col="grey", main = "", xlab = "", ylab = "", axes = F, add = F)
-    lines(x = td$x, y = td$y * length(dat[,1]) * diff(t_hist$breaks)[1], lwd = 2)
-    lines(x = td$x, y = fit_td * length(dat[,1]) * diff(t_hist$breaks)[1], lwd = 1, col = "blue", lty = "dashed")
+    # plot(t_hist, col="grey", main = "", xlab = "", ylab = "", axes = F, add = F)
+    plot(x = td$x, y = dens_t[,1], type = "l",
+         axes = F, lwd = 2, xlab = "", ylab = "", main = "", 
+         ylim = c(0, max(dens_t)))
+    lines(x = td$x, y = dens_t[,2], lwd = 1, col = "blue", lty = "dashed")
     # * length(dat[,1]) * diff(t_hist$breaks)[1]
     
     par(mar = c(4,0,0,0))
-    barplot(x_hist$density, axes = F,
-            xlim = c(0, max(x_hist$density)),
-            space = 0, horiz = T)
-    lines(x = xd$y * length(dat[,2]) * diff(x_hist$breaks)[1], y = xd$x, lwd = 2)
-    lines(x = fit_xd * length(dat[,2]) * diff(x_hist$breaks)[1], y = xd$x, lwd = 1, col = "blue", lty = "dashed")
-    # * length(dat[,2]) * diff(x_hist$breaks)[1]
-    # legend("topright", legend = c("Generic Density", "Fitted Abe-Ley Density"), col = c("black", "blue"), lty = c("solid", "dashed"), lwd = c(2,1))
+    # barplot(x_hist$density, axes = F,
+    #         xlim = c(0, max(x_hist$density)),
+    #         space = 0, horiz = T)
+    plot(x = dens_x[,1], y = xd$x, type = "l",
+         axes = F, lwd = 2, xlab = "", ylab = "", 
+         xlim = c(0, ifelse(is.finite(max(dens_x)), max(dens_x), max(dens_x[,1]))))
+    lines(x = dens_x[,2], y = xd$x, lwd = 1, col = "blue", lty = "dashed")
     par(par.)
     
     par(mfrow = c(1,1))
